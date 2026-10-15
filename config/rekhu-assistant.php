@@ -1,0 +1,60 @@
+<?php
+
+// Rekhu Assistant, the Laravel connector. Everything here can be set from .env; `php artisan rekhu:assistant-install` writes the key.
+return [
+
+    // The app key from the Rekhu account (Products → Rekhu Assistant → Add app). One key per environment.
+    'key' => env('REKHU_ASSISTANT_KEY'),
+
+    // The platform. Only change it for a test platform.
+    'platform' => env('REKHU_PLATFORM', 'https://api.rekhu.ai'),
+
+    // The model the assistant answers with, and how long one answer and one turn may get.
+    'model' => env('REKHU_ASSISTANT_MODEL', 'claude-sonnet-5'),
+    'max_tokens' => 4000,
+    'max_steps' => 8,
+
+    // Where the chat lives, and who may use it: the app's own middleware, so only signed-in users talk to it.
+    // Blade, Livewire, Inertia: web,auth. An API for a Nuxt, Next or mobile front end: api,auth:sanctum (or your guard).
+    'path' => 'rekhu/assistant',
+    'middleware' => explode(',', env('REKHU_ASSISTANT_MIDDLEWARE', 'web,auth')),
+
+    // The public chat, for visitors who are not signed in (off unless you turn it on). Visitors only reach actions marked
+    // #[Tool(…, guests: true)], pages without login, and the help. All of them together are one customer in your Rekhu
+    // account, "Visitors", with its own monthly limit: set one there before you turn this on.
+    'guests' => [
+        'enabled' => (bool) env('REKHU_ASSISTANT_GUESTS', false),
+        'middleware' => explode(',', env('REKHU_ASSISTANT_GUEST_MIDDLEWARE', 'web')),
+        'tenant' => ['id' => 'visitors', 'name' => 'Visitors'],
+        'greeting' => null,                 // null: the greeting below
+        'max_message' => 1000,              // characters per message
+        'max_steps' => 4,                   // tool rounds per answer
+        'per_visitor_per_day' => 20,        // messages
+        'per_ip_per_hour' => 60,            // messages from one IP address, whatever the visitor id
+        'total_per_day' => 1000,            // messages from all visitors together
+    ],
+
+    // How it introduces itself, and its colour in the widget.
+    'name' => env('REKHU_ASSISTANT_NAME', 'Assistant'),
+    'greeting' => 'Hi! Ask me anything about this app, or tell me what you want done.',
+    'color' => '#4f46e5',
+
+    // What a user sees when you paused their company, or it used its monthly limit (set per customer in your Rekhu account).
+    'paused_message' => 'The assistant is paused for your account. Please contact us to turn it back on.',
+
+    // Your own rules for the assistant, in plain words: tone, what it never does, when it hands over to a person.
+    'instructions' => '',
+
+    // Pages it may open: every named GET route, minus these name patterns, minus routes the user may not open.
+    'pages' => [
+        'exclude' => ['rekhu.*', 'login', 'logout', 'register', 'password.*', 'verification.*', 'sanctum.*', 'livewire.*',
+            'ignition.*', 'telescope*', 'horizon.*', 'pulse*', 'debugbar.*', 'storage.*', 'up', 'filament.*.auth.*'],
+        'limit' => 300,
+    ],
+
+    // Help files the assistant answers from: markdown, one topic per file. Empty means resources/rekhu/help.
+    'help_path' => null,
+
+    // How long a conversation is kept for its user, in minutes.
+    'conversation_minutes' => 1440,
+];
