@@ -2,6 +2,11 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.3.1 · 15 October 2026
+
+- **Laravel 12 and 13.** Laravel 11 is no longer supported: its security support ended, and every Laravel 11 release now has open security advisories, so Composer refuses to install it. Apps on Laravel 11 keep 0.2.0 until they upgrade.
+- CI on the current GitHub Actions runners.
+
 ## 0.3.0 · 15 October 2026
 
 - **Errors as JSON on the chat routes**, also those of the app's own middleware. A sign-in that expired now answers `401` instead of redirecting to the login page (which failed with a `500` in apps without a `login` route); an expired CSRF token answers a JSON `419`. The widget can show both.

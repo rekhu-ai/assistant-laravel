@@ -9,7 +9,7 @@
   <a href="https://packagist.org/packages/rekhu/assistant-laravel"><img alt="Latest version" src="https://img.shields.io/packagist/v/rekhu/assistant-laravel?label=version&color=6A1FD0"></a>
   <a href="https://packagist.org/packages/rekhu/assistant-laravel"><img alt="Total downloads" src="https://img.shields.io/packagist/dt/rekhu/assistant-laravel?color=6A1FD0"></a>
   <img alt="PHP 8.2 or newer" src="https://img.shields.io/badge/PHP-8.2%2B-777BB4">
-  <img alt="Laravel 11, 12 and 13" src="https://img.shields.io/badge/Laravel-11%20%7C%2012%20%7C%2013-FF2D20">
+  <img alt="Laravel 12 and 13" src="https://img.shields.io/badge/Laravel-12%20%7C%2013-FF2D20">
 </p>
 
 <p align="center">
@@ -56,7 +56,7 @@
 | Requirement | Version |
 |---|---|
 | PHP | 8.2 or newer |
-| Laravel | 11, 12 or 13 |
+| Laravel | 12 or 13 |
 | Cache | any store your app already uses; conversations are kept there |
 | Rekhu | an account with an app key and credit; [sign up](https://rekhu.com/register), then top up from $10 under **Billing** |
 
