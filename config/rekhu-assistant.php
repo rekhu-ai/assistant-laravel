@@ -3,7 +3,7 @@
 // Rekhu Assistant, the Laravel connector. Everything here can be set from .env; `php artisan rekhu:assistant-install` writes the key.
 return [
 
-    // The app key from the Rekhu account (Products → Rekhu Assistant → Add app). One key per environment.
+    // The app key from the Rekhu account (Projects → your Laravel app → Connection tab). One key per environment.
     'key' => env('REKHU_ASSISTANT_KEY'),
 
     // The platform. Only change it for a test platform.

@@ -2,6 +2,10 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.3.2 · 15 October 2026
+
+- The install command and the config point to where keys are made now: the Connection tab of the app's project in the Rekhu account.
+
 ## 0.3.1 · 15 October 2026
 
 - **Laravel 12 and 13.** Laravel 11 is no longer supported: its security support ended, and every Laravel 11 release now has open security advisories, so Composer refuses to install it. Apps on Laravel 11 keep 0.2.0 until they upgrade.
