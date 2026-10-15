@@ -17,7 +17,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.1.0';
+    public const VERSION = '0.1.1';
 
     private static ?Closure $tenant = null;
 
