@@ -2,8 +2,8 @@
 (() => {
 /*
  * The Rekhu Assistant widget: a chat button and panel as <rekhu-assistant>, in its own shadow DOM so the app's CSS and
- * this one never meet. It speaks protocol 1 (PROTOCOL.md) with a server connector in the app: rekhu/assistant-laravel,
- * or any server that implements it. The conversation lives on the server; the browser only keeps its id.
+ * this one never meet. It speaks protocol 1 (PROTOCOL.md) with a Rekhu server package in the app's back end, for
+ * example @rekhu/assistant-node. The conversation lives on the server; the browser only keeps its id.
  *
  * Nothing touches the DOM until define() or mount() runs, so importing it during server rendering (Nuxt, Next) is safe.
  */

@@ -1,16 +1,16 @@
 # Rekhu Assistant protocol, version 1
 
-What the chat widget (`@rekhu/assistant-widget`) and a **server connector** in the app say to each other. The server packages `@rekhu/assistant-node` (Node.js) and `rekhu/assistant-laravel` (Laravel) implement it; a package for another back end implements the same, and a team that wants its own chat screen can talk to a connector directly.
+What the chat widget (`@rekhu/assistant-widget`) and a **Rekhu server package** in the app's back end say to each other. A server package implements it (for Node.js: `@rekhu/assistant-node`), and a team that wants its own chat screen can talk to one directly.
 
-The connector runs inside the developer's app. It knows the signed-in user, the actions and pages they may use, and the help. It calls the Rekhu platform for the model. The browser never talks to Rekhu and never holds a Rekhu key.
+The server package runs inside the developer's back end. It knows the signed-in user, the actions and pages they may use, and the help. It calls the Rekhu platform for the model. The browser never talks to Rekhu and never holds a Rekhu key.
 
 ```
-browser (widget or own UI)  ──protocol 1──▶  connector in the app  ──▶  Rekhu platform  ──▶  model
+browser (widget or own UI)  ──protocol 1──▶  server package in the app  ──▶  Rekhu platform  ──▶  model
 ```
 
 ## Endpoint
 
-One URL, chosen by the app (Laravel: `/rekhu/assistant/chat`), with three methods:
+One URL, chosen by the app (for example `/rekhu/assistant/chat`), with three methods:
 
 | Method | Does |
 |---|---|
@@ -20,18 +20,18 @@ One URL, chosen by the app (Laravel: `/rekhu/assistant/chat`), with three method
 
 ## Who is talking
 
-The connector uses the app's own login: a session cookie (with the CSRF token on a same-domain page), an API token (`Authorization: Bearer …`, for example Laravel Sanctum or a JWT), or whatever else the app uses. The protocol does not define it; the widget passes it on (`credentials`, `csrf`, `headers`).
+The server package uses the app's own login: a session cookie (with the CSRF token on a same-domain page), an API token (`Authorization: Bearer …`, for example a JWT), or whatever else the app uses. The protocol does not define it; the widget passes it on (`credentials`, `csrf`, `headers`).
 
 - No signed-in user: `401` (or `419` for an expired CSRF token).
 - A conversation belongs to the user who started it. Another user's conversation id opens a new, empty conversation for the caller; it never shows or continues someone else's.
 
-Every request may carry `X-Rekhu-Protocol: 1`. A connector that does not speak the version it is asked for answers `400`. A connector may require the header on `POST` and `DELETE` as its defence against cross-site requests (a form on another site cannot send it), answering `403` without it; `@rekhu/assistant-node` does. The widget always sends it.
+Every request may carry `X-Rekhu-Protocol: 1`. A server package that does not speak the version it is asked for answers `400`. A server package may require the header on `POST` and `DELETE` as its defence against cross-site requests (a form on another site cannot send it), answering `403` without it; `@rekhu/assistant-node` does. The widget always sends it.
 
 ## The public chat: visitors who are not signed in
 
-A connector can offer the same chat to visitors, on a second endpoint the app chooses (Laravel: `/rekhu/assistant/visitor/chat`, off until the app turns it on). Everything in this document holds for it, with these differences:
+A server package can offer the same chat to visitors, on a second endpoint the app chooses (for example `/rekhu/assistant/visitor/chat`), off until the app turns it on. Everything in this document holds for it, with these differences:
 
-- **The visitor names themselves** with an anonymous id: every request carries `X-Rekhu-Visitor: <uuid>`, a random UUID the client keeps (the widget keeps one per browser). No id, or one that is not a UUID: `422`. The id is not a login; it only keeps one visitor's conversation apart from another's and lets the connector count their messages.
+- **The visitor names themselves** with an anonymous id: every request carries `X-Rekhu-Visitor: <uuid>`, a random UUID the client keeps (the widget keeps one per browser). No id, or one that is not a UUID: `422`. The id is not a login; it only keeps one visitor's conversation apart from another's and lets the server package count their messages.
 - **A visitor is never a user.** Even when the browser is signed in, the public endpoint answers as a visitor.
 - **What a visitor reaches:** only the actions the app marked for guests, pages that need no login (and the sign-in page), and the help.
 - **Caps:** per visitor per day, per IP address per hour, and for all visitors together per day. Over a cap: `429` with a message to show.
@@ -90,7 +90,7 @@ A `text` after a `step` or a `card` starts a new answer bubble.
 | `done` | `title`, `message?`, `url?` | an action ran; the app's data changed |
 | `failed` | `title`, `message` | an action was refused or failed; `message` says why |
 
-**Confirming.** Nothing runs when the confirm card is shown. The connector keeps the action and its exact input on the server under `id`. Only a `POST` with `"confirm": "<id>"` runs it, with that stored input; a typed "yes", or an id the connector did not issue to this user in this conversation, runs nothing. Cancel is an ordinary message ("No, cancel that.").
+**Confirming.** Nothing runs when the confirm card is shown. The server package keeps the action and its exact input on the server under `id`. Only a `POST` with `"confirm": "<id>"` runs it, with that stored input; a typed "yes", or an id the server package did not issue to this user in this conversation, runs nothing. Cancel is an ordinary message ("No, cancel that.").
 
 ### Errors
 
@@ -98,7 +98,7 @@ A `text` after a `step` or a `card` starts a new answer bubble.
 |---|---|---|
 | `401`, `419` | HTTP status | "Your session has ended. Reload the page and sign in again." |
 | `422` | HTTP status | the turn was empty or malformed |
-| `429` | HTTP status | "That was a lot of messages at once. Wait a minute and try again."; on the public chat the connector's own message about its cap |
+| `429` | HTTP status | "That was a lot of messages at once. Wait a minute and try again."; on the public chat the server package's own message about its cap |
 | `error` event | in the stream | its `message`, for example that the assistant is paused for this customer (the developer's limit in Rekhu) or not available right now |
 
 ## GET: the conversation so far
@@ -127,4 +127,4 @@ Answers are a small markdown: paragraphs, `-` and `1.` lists, `**bold**`, `*ital
 
 ## Changes
 
-A connector and the widget agree on the version with `X-Rekhu-Protocol` and the `start` event's `protocol`. New optional fields and new card kinds can come within version 1; a client ignores what it does not know. Anything that breaks an existing client is version 2.
+A server package and the widget agree on the version with `X-Rekhu-Protocol` and the `start` event's `protocol`. New optional fields and new card kinds can come within version 1; a client ignores what it does not know. Anything that breaks an existing client is version 2.
