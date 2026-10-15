@@ -32,7 +32,7 @@
 | **Pages and help** | It sends users to the right page and answers from your own markdown help, in their language. |
 | **Any front end** | Blade, Livewire, Inertia (Vue or React), or an API with Nuxt, Next or a mobile app. |
 | **A public chat** | Optionally for visitors who are not signed in, with caps per visitor, per IP address and per day. |
-| **Usage and limits per customer** | A monthly limit, a pause, alerts and a CSV for billing, per customer, in your Rekhu account. |
+| **Applications, like projects** | Each app gets its keys per environment, one monthly limit and a pause in your Rekhu account, with usage per customer to bill from. |
 | **No inbound connection** | Your app calls Rekhu; nothing calls into your app. It works the same on a laptop and in production. |
 
 ## Contents
@@ -44,7 +44,7 @@
 5. [Pages](#pages)
 6. [Help](#help)
 7. [A public chat for visitors](#a-public-chat-for-visitors)
-8. [Your customers and their limits](#your-customers-and-their-limits)
+8. [Applications, usage and limits](#applications-usage-and-limits)
 9. [How it works](#how-it-works)
 10. [Security](#security)
 11. [Configuration](#configuration)
@@ -66,7 +66,7 @@
 
 [Create a Rekhu account](https://rekhu.com/register) and put credit on it under **Billing** (from $10). The assistant draws from that credit per conversation; without credit it cannot answer.
 
-Then open **Products and sites → Rekhu Assistant → Add an app**. Create one key per environment, for example `shop · local` and `shop · production`. The key is shown once, together with the commands of the next step.
+Then open **Apps → Rekhu Assistant**, create an **application** (for example "Shop", built with Laravel, monolith or multi-tenant) and, on its page, add a key for your first environment (`local`). Add one per environment later (`staging`, `production`); they all count toward the same application. A key is shown once, together with the commands of the next step.
 
 ### 2. Install the package
 
@@ -319,11 +319,17 @@ public function quote(QuoteRequest $request) { … }   // the route must work wi
 | Who a visitor is | An anonymous id kept in their browser, with a conversation of its own. A visitor is never a user, even when the browser happens to be signed in. |
 | Caps | Per visitor per day (20 messages), per IP address per hour (60), for all visitors together per day (1000), plus shorter messages and fewer steps per answer. All set under `guests` in the config. |
 | CSRF | Stays on, as for signed-in users. |
-| Cost | All visitors together are one customer in your Rekhu account, **Visitors**, with its own monthly limit and pause. Set that limit before you turn the public chat on. |
+| Cost | All visitors together show as one tenant, **Visitors**, in the application's usage, and count toward the application's monthly limit. Set that limit before you turn the public chat on. |
 
-## Your customers and their limits
+## Applications, usage and limits
 
-If your app serves many companies, tell the package which company a user belongs to, in a service provider:
+Your Rekhu account keeps everything per **application**, like a project: open **Apps → Rekhu Assistant** and click an application.
+
+- **Keys per environment.** One secret key for local, staging and production; all of them count toward the application.
+- **One monthly limit and a pause** for the whole application, with a message on your notification channels at 80% and 100%. At the limit, or paused, the application's assistant answers nobody; your other applications go on. Its users read that the assistant is not available right now, and your app's log says why.
+- **Usage per user or per tenant**, tracked, not limited: per user for a monolith, per tenant (with its users) for a multi-tenant app, as you choose when you create the application. Conversations, messages and usage per month, and a CSV to bill from.
+
+For a multi-tenant app, tell the package which tenant a user belongs to, in a service provider, so usage shows per tenant:
 
 ```php
 use Rekhu\Assistant\RekhuAssistant;
@@ -334,15 +340,7 @@ public function boot(): void
 }
 ```
 
-Your Rekhu account then lists each company under **Products and sites → Rekhu Assistant → Your customers**:
-
-- conversations, users and usage per month;
-- a monthly limit per company, or one default for all;
-- a pause per company;
-- alerts at 80% and 100% of a limit on your notification channels;
-- a CSV export to bill your customers from.
-
-A company that is paused or at its limit gets the `paused_message` from the config, and no model call is made.
+Users are identified to Rekhu by their id only, never by name or e-mail.
 
 ## How it works
 
@@ -394,7 +392,6 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 |---|---|
 | `instructions` | Your own rules for the assistant, in plain words: tone, what it never does, when it hands over to a person. |
 | `greeting`, `color` | The first message and the accent colour of the widget. |
-| `paused_message` | What a user of a paused customer, or one at its limit, sees. |
 | `pages.exclude`, `pages.limit` | Route names never offered as pages, and the most pages offered. |
 | `help_path` | Another folder for the help topics. |
 | `conversation_minutes` | How long a conversation is kept (1440). |
@@ -416,8 +413,7 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 | No chat button | The tag shows for signed-in users (and for visitors with `REKHU_ASSISTANT_GUESTS=true`). Check that it is in the layout this page uses. |
 | "Your session has ended" | The chat got a 401 or 419: the sign-in or the CSRF token expired. In API mode, check the token and `REKHU_ASSISTANT_MIDDLEWARE`. |
 | An action is missing | Run `php artisan rekhu:assistant --user=<id>`. A `can:` middleware hides an action from users who may not use it. |
-| "The assistant is paused for your account" | That customer is paused, or at its monthly limit, in your Rekhu account. |
-| "The assistant is not available right now" | Your Rekhu credit is used up, the app could not reach Rekhu, or the key is wrong. `php artisan rekhu:assistant` checks all three; the app's log says which. |
+| "The assistant is not available right now" | The application is paused or at its monthly limit, your Rekhu credit is used up, the app could not reach Rekhu, or the key is wrong. The app's log says which; `php artisan rekhu:assistant` checks the key and the credit. |
 | CORS errors in the browser | In API mode, add `rekhu/assistant/*` to `paths` and your front end's domain to `allowed_origins` in `config/cors.php`. |
 
 ## Changelog

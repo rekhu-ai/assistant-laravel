@@ -148,24 +148,20 @@ class ChatController
     }
 
     /**
-     * What the user reads when a turn fails, and what the developer finds in the log. A paused customer is told so; the
-     * developer's own empty credit is the developer's to fix, so the user only hears that it is not available.
+     * What the user reads when a turn fails, and what the developer finds in the log. Rekhu refusing (the application is
+     * paused or at its monthly limit, or the account's credit is used up) is the developer's to fix, so the user only
+     * hears that the assistant is not available; the log says why.
      */
     private static function explain(Throwable $e): string
     {
-        $unavailable = 'The assistant is not available right now. Please try again in a moment.';
-        if ($e instanceof Refused && $e->type === 'tenant_limit') {
-            Log::warning('rekhu assistant: '.$e->getMessage());
-
-            return (string) config('rekhu-assistant.paused_message', 'The assistant is paused for your account. Please contact us to turn it back on.');
-        }
-        if ($e instanceof Refused && ($e->type === 'billing_error' || $e->getCode() === 402)) {
+        if ($e instanceof Refused && $e->type === 'app_limit') {
+            Log::warning('rekhu assistant: this application is paused or at its monthly limit in your Rekhu account (Products and sites → Rekhu Assistant). ('.$e->getMessage().')');
+        } elseif ($e instanceof Refused && ($e->type === 'billing_error' || $e->getCode() === 402)) {
             Log::error('rekhu assistant: the credit of your Rekhu account is used up, so the assistant cannot answer. Top up at https://rekhu.com/account/credit. ('.$e->getMessage().')');
-
-            return $unavailable;
+        } else {
+            Log::error('rekhu assistant: '.$e->getMessage(), ['exception' => $e]);
         }
-        Log::error('rekhu assistant: '.$e->getMessage(), ['exception' => $e]);
 
-        return $unavailable;
+        return 'The assistant is not available right now. Please try again in a moment.';
     }
 }

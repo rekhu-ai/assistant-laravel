@@ -39,9 +39,6 @@ return [
     'greeting' => 'Hi! Ask me anything about this app, or tell me what you want done.',
     'color' => '#4f46e5',
 
-    // What a user sees when you paused their company, or it used its monthly limit (set per customer in your Rekhu account).
-    'paused_message' => 'The assistant is paused for your account. Please contact us to turn it back on.',
-
     // Your own rules for the assistant, in plain words: tone, what it never does, when it hands over to a person.
     'instructions' => '',
 

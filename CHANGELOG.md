@@ -2,6 +2,13 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.2.0 · 15 October 2026
+
+- **Applications.** Usage and limits now belong to an application in the Rekhu account, like a project: keys per environment (local, staging, production), one monthly limit and a pause for the whole application, and alerts at 80% and 100%. One application at its limit no longer stops the developer's other applications.
+- **Usage is tracked inside each application:** per user for a monolith, per tenant for a multi-tenant app, chosen when the application is created. It is no longer limited per tenant, and the same tenant name in two applications is no longer counted as one.
+- Users of an application that is paused or at its limit read that the assistant is not available right now; the app's log says why.
+- Removed the `paused_message` setting: there is no pause per customer any more.
+
 ## 0.1.2 · 15 October 2026
 
 - When the Rekhu account's credit is used up, users now read that the assistant is not available, and the app's log says to top up. Before, they were told their account was paused.
