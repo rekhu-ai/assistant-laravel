@@ -58,13 +58,15 @@
 | PHP | 8.2 or newer |
 | Laravel | 11, 12 or 13 |
 | Cache | any store your app already uses; conversations are kept there |
-| Rekhu | an account with an app key; [sign up free](https://rekhu.com/register) |
+| Rekhu | an account with an app key and credit; [sign up](https://rekhu.com/register), then top up from $10 under **Billing** |
 
 ## Getting started
 
 ### 1. Get an app key
 
-In your Rekhu account, open **Products and sites → Rekhu Assistant → Add an app**. Create one key per environment, for example `shop · local` and `shop · production`. The key is shown once, together with the commands of the next step.
+[Create a Rekhu account](https://rekhu.com/register) and put credit on it under **Billing** (from $10). The assistant draws from that credit per conversation; without credit it cannot answer.
+
+Then open **Products and sites → Rekhu Assistant → Add an app**. Create one key per environment, for example `shop · local` and `shop · production`. The key is shown once, together with the commands of the next step.
 
 ### 2. Install the package
 
@@ -106,7 +108,7 @@ class OrderController extends Controller
 php artisan rekhu:assistant --user=1
 ```
 
-It lists the actions, pages and help topics that user can reach, and tests the connection to Rekhu. Then sign in, open the chat and ask *"order my last business cards again"*.
+It shows your credit, lists the actions, pages and help topics that user can reach, and tests the connection to Rekhu. Then sign in, open the chat and ask *"order my last business cards again"*.
 
 ## Choose your setup
 
@@ -404,7 +406,7 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 | Command | What it does |
 |---|---|
 | `php artisan rekhu:assistant-install --key=agk_…` | Checks the key with Rekhu, writes it to `.env`, publishes the config and creates the help folder. |
-| `php artisan rekhu:assistant` | Lists the actions, pages and help topics, and tests the connection to Rekhu. |
+| `php artisan rekhu:assistant` | Shows your credit, lists the actions, pages and help topics, and tests the connection to Rekhu. |
 | `php artisan rekhu:assistant --user=12` | The same, as one user: only what that user may use. |
 
 ## Troubleshooting
@@ -415,7 +417,7 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 | "Your session has ended" | The chat got a 401 or 419: the sign-in or the CSRF token expired. In API mode, check the token and `REKHU_ASSISTANT_MIDDLEWARE`. |
 | An action is missing | Run `php artisan rekhu:assistant --user=<id>`. A `can:` middleware hides an action from users who may not use it. |
 | "The assistant is paused for your account" | That customer is paused, or at its monthly limit, in your Rekhu account. |
-| "The assistant is not available right now" | The app could not reach Rekhu, or the key is wrong. `php artisan rekhu:assistant` checks both; the app's log has the details. |
+| "The assistant is not available right now" | Your Rekhu credit is used up, the app could not reach Rekhu, or the key is wrong. `php artisan rekhu:assistant` checks all three; the app's log says which. |
 | CORS errors in the browser | In API mode, add `rekhu/assistant/*` to `paths` and your front end's domain to `allowed_origins` in `config/cors.php`. |
 
 ## Changelog

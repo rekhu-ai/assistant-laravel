@@ -2,6 +2,12 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.1.2 · 15 October 2026
+
+- When the Rekhu account's credit is used up, users now read that the assistant is not available, and the app's log says to top up. Before, they were told their account was paused.
+- `rekhu:assistant-install` and `rekhu:assistant` show the account's credit, and warn when it is empty.
+- The documentation says that the account needs credit, in the requirements, in step 1 and in troubleshooting.
+
 ## 0.1.1 · 15 October 2026
 
 - The documentation in full: getting started in five steps, a section per setup (Blade, Livewire, Inertia, an API with Nuxt, Next or a mobile app), every attribute and setting, how it works, security and troubleshooting.

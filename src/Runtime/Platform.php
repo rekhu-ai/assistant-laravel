@@ -45,7 +45,7 @@ class Platform
 
         if (! $response->successful()) {
             $error = json_decode((string) $response->body(), true);
-            throw new RuntimeException('Rekhu answered '.$response->status().': '.($error['error']['message'] ?? 'no reason given'), $response->status());
+            throw new Refused('Rekhu answered '.$response->status().': '.($error['error']['message'] ?? 'no reason given'), $response->status(), (string) ($error['error']['type'] ?? ''));
         }
 
         return $this->read($response->toPsrResponse()->getBody(), $onText);

@@ -1,6 +1,6 @@
 # Rekhu Assistant protocol, version 1
 
-What the chat widget (`@rekhu/assistant-widget`) and a **server connector** in the app say to each other. The Laravel connector (`rekhu/assistant-laravel`) implements it; a connector for another backend implements the same, and a team that wants its own chat screen can talk to a connector directly.
+What the chat widget (`@rekhu/assistant-widget`) and a **server connector** in the app say to each other. The server packages `@rekhu/assistant-node` (Node.js) and `rekhu/assistant-laravel` (Laravel) implement it; a package for another back end implements the same, and a team that wants its own chat screen can talk to a connector directly.
 
 The connector runs inside the developer's app. It knows the signed-in user, the actions and pages they may use, and the help. It calls the Rekhu platform for the model. The browser never talks to Rekhu and never holds a Rekhu key.
 
@@ -25,7 +25,7 @@ The connector uses the app's own login: a session cookie (with the CSRF token on
 - No signed-in user: `401` (or `419` for an expired CSRF token).
 - A conversation belongs to the user who started it. Another user's conversation id opens a new, empty conversation for the caller; it never shows or continues someone else's.
 
-Every request may carry `X-Rekhu-Protocol: 1`. A connector that does not speak the version it is asked for answers `400`.
+Every request may carry `X-Rekhu-Protocol: 1`. A connector that does not speak the version it is asked for answers `400`. A connector may require the header on `POST` and `DELETE` as its defence against cross-site requests (a form on another site cannot send it), answering `403` without it; `@rekhu/assistant-node` does. The widget always sends it.
 
 ## The public chat: visitors who are not signed in
 

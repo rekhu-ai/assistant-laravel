@@ -36,9 +36,12 @@ class StatusCommand extends Command
         } else {
             $response = Http::baseUrl(rtrim((string) config('rekhu-assistant.platform'), '/'))->timeout(15)->acceptJson()
                 ->withHeaders(['x-api-key' => $key['key'], 'x-agent' => $key['agent']])->get('/v1/balance');
-            $response->successful()
-                ? $this->info("  Connected: {$key['customer']} / {$key['agent']}")
-                : $this->error('  Rekhu refused the key ('.$response->status().'): '.($response->json('error.message') ?? ''));
+            if ($response->successful()) {
+                $this->info("  Connected: {$key['customer']} / {$key['agent']}");
+                \Rekhu\Assistant\Console\InstallCommand::credit($this, (array) $response->json());
+            } else {
+                $this->error('  Rekhu refused the key ('.$response->status().'): '.($response->json('error.message') ?? ''));
+            }
         }
 
         $actions = Actions::for($user, ! $user);

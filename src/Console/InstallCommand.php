@@ -39,6 +39,7 @@ class InstallCommand extends Command
         }
 
         $this->info("Connected to Rekhu as {$m[1]} / {$m[2]}.");
+        self::credit($this, (array) $response->json());
         $this->line('Next:');
         $this->line('  1. Put <x-rekhu-assistant /> in your layout, before </body>.');
         $this->line('  2. Mark the actions it may perform: #[\Rekhu\Assistant\Attributes\Tool(\'What it does\')] on a controller method.');
@@ -46,6 +47,19 @@ class InstallCommand extends Command
         $this->line('  4. php artisan rekhu:assistant shows what it sees.');
 
         return self::SUCCESS;
+    }
+
+    /** The account's credit, with a warning when a prepaid account has none: then the assistant cannot answer yet. */
+    public static function credit(\Illuminate\Console\Command $command, array $balance): void
+    {
+        $amount = (float) ($balance['balance']['amount'] ?? 0);
+        $shown = (string) ($balance['balance']['display'] ?? '$'.number_format($amount, 2));
+        if (($balance['prepaid'] ?? true) && $amount <= 0) {
+            $command->warn("  Credit: {$shown}. The assistant cannot answer until you top up: https://rekhu.com/account/credit");
+
+            return;
+        }
+        $command->line('  Credit: '.(($balance['prepaid'] ?? true) ? $shown : 'invoiced monthly'));
     }
 
     private function writeEnv(string $name, string $value): void

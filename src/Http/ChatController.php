@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Rekhu\Assistant\Runtime\Turn;
 use Rekhu\Assistant\Runtime\Conversation;
+use Rekhu\Assistant\Runtime\Refused;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -54,13 +55,7 @@ class ChatController
                 $send(['type' => 'done']);
             } catch (Throwable $e) {
                 $conversation->save();
-                $e->getCode() === 402
-                    ? Log::warning('rekhu assistant: '.$e->getMessage())
-                    : Log::error('rekhu assistant: '.$e->getMessage(), ['exception' => $e]);
-                // 402: this user's company is paused or at the limit the developer set, or the developer's own credit ran out
-                $send(['type' => 'error', 'message' => $e->getCode() === 402
-                    ? (string) config('rekhu-assistant.paused_message', 'The assistant is paused for your account. Please contact us to turn it back on.')
-                    : 'The assistant is not available right now. Please try again in a moment.']);
+                $send(['type' => 'error', 'message' => self::explain($e)]);
             }
             // whatever an action flashed or changed in the session is kept for the user's next page (an API has no session)
             if ($request->hasSession()) {
@@ -150,5 +145,27 @@ class ChatController
     private static function refuse(int $status, string $message): never
     {
         throw new HttpResponseException(response()->json(['message' => $message], $status));
+    }
+
+    /**
+     * What the user reads when a turn fails, and what the developer finds in the log. A paused customer is told so; the
+     * developer's own empty credit is the developer's to fix, so the user only hears that it is not available.
+     */
+    private static function explain(Throwable $e): string
+    {
+        $unavailable = 'The assistant is not available right now. Please try again in a moment.';
+        if ($e instanceof Refused && $e->type === 'tenant_limit') {
+            Log::warning('rekhu assistant: '.$e->getMessage());
+
+            return (string) config('rekhu-assistant.paused_message', 'The assistant is paused for your account. Please contact us to turn it back on.');
+        }
+        if ($e instanceof Refused && ($e->type === 'billing_error' || $e->getCode() === 402)) {
+            Log::error('rekhu assistant: the credit of your Rekhu account is used up, so the assistant cannot answer. Top up at https://rekhu.com/account/credit. ('.$e->getMessage().')');
+
+            return $unavailable;
+        }
+        Log::error('rekhu assistant: '.$e->getMessage(), ['exception' => $e]);
+
+        return $unavailable;
     }
 }
