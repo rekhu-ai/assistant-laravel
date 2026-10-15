@@ -32,7 +32,7 @@
 | **Pages and help** | It sends users to the right page and answers from your own markdown help, in their language. |
 | **Any front end** | Blade, Livewire, Inertia (Vue or React), or an API with Nuxt, Next or a mobile app. |
 | **A public chat** | Optionally for visitors who are not signed in, with caps per visitor, per IP address and per day. |
-| **Applications, like projects** | Each app gets its keys per environment, one monthly limit and a pause in your Rekhu account, with usage per customer to bill from. |
+| **One project per app** | Each app is a project in your Rekhu account, with keys per environment, one monthly limit, a pause, and usage per user or per tenant to bill from. |
 | **No inbound connection** | Your app calls Rekhu; nothing calls into your app. It works the same on a laptop and in production. |
 
 ## Contents
@@ -44,7 +44,7 @@
 5. [Pages](#pages)
 6. [Help](#help)
 7. [A public chat for visitors](#a-public-chat-for-visitors)
-8. [Applications, usage and limits](#applications-usage-and-limits)
+8. [Projects, usage and limits](#projects-usage-and-limits)
 9. [How it works](#how-it-works)
 10. [Security](#security)
 11. [Configuration](#configuration)
@@ -66,7 +66,7 @@
 
 [Create a Rekhu account](https://rekhu.com/register) and put credit on it under **Billing** (from $10). The assistant draws from that credit per conversation; without credit it cannot answer.
 
-Then open **Apps → Rekhu Assistant**, create an **application** (for example "Shop", built with Laravel, monolith or multi-tenant) and, on its page, add a key for your first environment (`local`). Add one per environment later (`staging`, `production`); they all count toward the same application. A key is shown once, together with the commands of the next step.
+Then create a **project** under **Projects → New project**: choose **Laravel app**, monolith or multi-tenant, and name it (for example "Shop"). Turn on its assistant on the **Assistant** tab, and on the **Connection** tab add a key for your first environment (`local`). Add one per environment later (`staging`, `production`); they all count toward the same project. A key is shown once, together with the commands of the next step.
 
 ### 2. Install the package
 
@@ -319,15 +319,15 @@ public function quote(QuoteRequest $request) { … }   // the route must work wi
 | Who a visitor is | An anonymous id kept in their browser, with a conversation of its own. A visitor is never a user, even when the browser happens to be signed in. |
 | Caps | Per visitor per day (20 messages), per IP address per hour (60), for all visitors together per day (1000), plus shorter messages and fewer steps per answer. All set under `guests` in the config. |
 | CSRF | Stays on, as for signed-in users. |
-| Cost | All visitors together show as one tenant, **Visitors**, in the application's usage, and count toward the application's monthly limit. Set that limit before you turn the public chat on. |
+| Cost | All visitors together show as one tenant, **Visitors**, in the project's usage, and count toward its monthly limit. Set that limit before you turn the public chat on. |
 
-## Applications, usage and limits
+## Projects, usage and limits
 
-Your Rekhu account keeps everything per **application**, like a project: open **Apps → Rekhu Assistant** and click an application.
+Your Rekhu account keeps everything per **project**: one project per app. Its **Connection** tab holds the keys; its **Assistant** tab the usage, the limit and the pause.
 
-- **Keys per environment.** One secret key for local, staging and production; all of them count toward the application.
-- **One monthly limit and a pause** for the whole application, with a message on your notification channels at 80% and 100%. At the limit, or paused, the application's assistant answers nobody; your other applications go on. Its users read that the assistant is not available right now, and your app's log says why.
-- **Usage per user or per tenant**, tracked, not limited: per user for a monolith, per tenant (with its users) for a multi-tenant app, as you choose when you create the application. Conversations, messages and usage per month, and a CSV to bill from.
+- **Keys per environment.** One secret key for local, staging and production; all of them count toward the project.
+- **One monthly limit and a pause** for the project's assistant, with a message on your notification channels at 80% and 100%. At the limit, or paused, the assistant answers nobody; your other projects go on. Its users read that the assistant is not available right now, and your app's log says why.
+- **Usage per user or per tenant**, tracked, not limited: per user for a monolith, per tenant (with its users) for a multi-tenant app, as you choose when you create the project. Conversations, messages and usage per month, and a CSV to bill from.
 
 For a multi-tenant app, tell the package which tenant a user belongs to, in a service provider, so usage shows per tenant:
 
@@ -413,7 +413,7 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 | No chat button | The tag shows for signed-in users (and for visitors with `REKHU_ASSISTANT_GUESTS=true`). Check that it is in the layout this page uses. |
 | "Your session has ended" | The chat got a 401 or 419: the sign-in or the CSRF token expired. In API mode, check the token and `REKHU_ASSISTANT_MIDDLEWARE`. |
 | An action is missing | Run `php artisan rekhu:assistant --user=<id>`. A `can:` middleware hides an action from users who may not use it. |
-| "The assistant is not available right now" | The application is paused or at its monthly limit, your Rekhu credit is used up, the app could not reach Rekhu, or the key is wrong. The app's log says which; `php artisan rekhu:assistant` checks the key and the credit. |
+| "The assistant is not available right now" | The project's assistant is paused or at its monthly limit, your Rekhu credit is used up, the app could not reach Rekhu, or the key is wrong. The app's log says which; `php artisan rekhu:assistant` checks the key and the credit. |
 | CORS errors in the browser | In API mode, add `rekhu/assistant/*` to `paths` and your front end's domain to `allowed_origins` in `config/cors.php`. |
 
 ## Changelog
