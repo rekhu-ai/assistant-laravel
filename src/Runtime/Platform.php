@@ -16,9 +16,7 @@ use RuntimeException;
 class Platform
 {
     /** $visitor: the anonymous id of a visitor in the public chat, who has no user. */
-    public function __construct(private ?Authenticatable $user, private string $conversation, private ?string $visitor = null)
-    {
-    }
+    public function __construct(private ?Authenticatable $user, private string $conversation, private ?string $visitor = null) {}
 
     /** The message as the provider returns it: ['content' => blocks, 'stop_reason' => …]. */
     public function message(array $body, Closure $onText): array

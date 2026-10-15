@@ -4,8 +4,9 @@ namespace Rekhu\Assistant\Runtime;
 
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
-use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Contracts\Session\Session;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
@@ -62,7 +63,7 @@ class Dispatcher
         $inner->setUserResolver($outer->getUserResolver());
 
         // the HTTP kernel hands its middleware groups (web, api…) to the router; outside a web request it may not have yet
-        app(\Illuminate\Contracts\Http\Kernel::class);
+        app(Kernel::class);
         $router = app(Router::class);
         $previous = app('request');
         $flash = ['status', 'success', 'message'];

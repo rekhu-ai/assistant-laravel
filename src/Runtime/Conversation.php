@@ -9,17 +9,21 @@ use Illuminate\Support\Str;
 /**
  * One user's conversation, kept on the server (the app's cache), never in the browser: the model only ever reads what
  * the app itself recorded. Also holds the actions waiting for the user's confirmation.
+ *
+ * What the user typed is stored as a string; what the app reports on the user's behalf (a confirmed action and its
+ * result) as content blocks, so the transcript shows the first and not the second.
  */
-class Conversation
+final class Conversation
 {
+    /** The most lines the transcript returns. */
+    private const TRANSCRIPT_LINES = 30;
+
     public array $messages = [];
 
     /** confirm id => ['tool', 'input'] shown to the user and not yet clicked */
     public array $pending = [];
 
-    private function __construct(public string $id, private string $owner)
-    {
-    }
+    private function __construct(public string $id, private string $owner) {}
 
     /** The conversation $id of this user, or of this visitor in the public chat (an anonymous id from the widget). */
     public static function open(?Authenticatable $user, ?string $id, ?string $visitor = null): self
@@ -46,6 +50,33 @@ class Conversation
             }
         }
         Cache::put($this->key(), ['messages' => $this->messages, 'pending' => $this->pending], now()->addMinutes((int) config('rekhu-assistant.conversation_minutes', 1440)));
+    }
+
+    /** @return list<array{role: 'user'|'bot', text: string}> the user's own messages and the assistant's answers */
+    public function transcript(): array
+    {
+        $lines = [];
+        foreach ($this->messages as $message) {
+            if ($message['role'] === 'user' && is_string($message['content'])) {
+                $lines[] = ['role' => 'user', 'text' => $message['content']];
+            } elseif ($message['role'] === 'assistant') {
+                $text = trim(implode("\n", array_map(
+                    fn (array $block) => $block['text'] ?? '',
+                    array_filter((array) $message['content'], fn ($block) => ($block['type'] ?? '') === 'text'),
+                )));
+                if ($text !== '') {
+                    $lines[] = ['role' => 'bot', 'text' => $text];
+                }
+            }
+        }
+
+        return array_slice($lines, -self::TRANSCRIPT_LINES);
+    }
+
+    /** A message the app writes for the user, such as the outcome of a confirmed action; the transcript leaves it out. */
+    public function report(string $text): void
+    {
+        $this->messages[] = ['role' => 'user', 'content' => [['type' => 'text', 'text' => $text]]];
     }
 
     public function forget(): void

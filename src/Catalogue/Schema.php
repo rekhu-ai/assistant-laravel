@@ -40,6 +40,7 @@ class Schema
                 if (in_array('required', $list, true)) {
                     $required[] = $field;
                 }
+
                 continue;
             }
             $root = $parts[0];

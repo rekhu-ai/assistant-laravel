@@ -1,27 +1,59 @@
 {
     "name": "rekhu/assistant-laravel",
     "description": "Rekhu Assistant for Laravel: a custom AI assistant inside your app, for your own customers: it answers, opens the right page and acts through the routes you mark, as the signed-in user, metered per customer by Rekhu.",
-    "keywords": ["laravel", "ai", "assistant", "chat", "copilot", "customer support", "rekhu"],
+    "keywords": [
+        "laravel",
+        "ai",
+        "assistant",
+        "chat",
+        "copilot",
+        "customer support",
+        "rekhu"
+    ],
     "homepage": "https://rekhu.com/products",
     "type": "library",
     "license": "proprietary",
-    "authors": [{ "name": "Rekhu, a product of Charisma Design", "email": "hello@rekhu.com", "homepage": "https://rekhu.com" }],
+    "authors": [
+        {
+            "name": "Rekhu, a product of Charisma Design",
+            "email": "hello@rekhu.com",
+            "homepage": "https://rekhu.com"
+        }
+    ],
     "require": {
         "php": "^8.2",
-        "illuminate/support": "^11.0|^12.0|^13.0",
-        "illuminate/http": "^11.0|^12.0|^13.0",
-        "illuminate/routing": "^11.0|^12.0|^13.0",
-        "illuminate/view": "^11.0|^12.0|^13.0",
-        "illuminate/console": "^11.0|^12.0|^13.0"
+        "laravel/framework": "^11.0|^12.0|^13.0"
     },
     "autoload": {
-        "psr-4": { "Rekhu\\Assistant\\": "src/" }
+        "psr-4": {
+            "Rekhu\\Assistant\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Rekhu\\Assistant\\Tests\\": "tests/"
+        }
     },
     "extra": {
         "laravel": {
-            "providers": ["Rekhu\\Assistant\\AssistantServiceProvider"]
+            "providers": [
+                "Rekhu\\Assistant\\AssistantServiceProvider"
+            ]
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "require-dev": {
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
+        "phpunit/phpunit": "^11.0|^12.0",
+        "laravel/pint": "^1.18"
+    },
+    "scripts": {
+        "test": "phpunit",
+        "lint": "pint",
+        "lint:check": "pint --test"
+    },
+    "config": {
+        "sort-packages": true
+    }
 }

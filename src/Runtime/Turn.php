@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Rekhu\Assistant\Catalogue\Actions;
 use Rekhu\Assistant\Catalogue\Pages;
+use Rekhu\Assistant\Http\Requests\ChatRequest;
 
 /**
  * One turn of the conversation: the user's words (or their click on a confirm button) in, the model's answer out, with
@@ -37,8 +38,7 @@ class Turn
         if ($confirm !== null) {
             $this->confirmed($confirm);
         } else {
-            $limit = $this->visitor === null ? 4000 : (int) config('rekhu-assistant.guests.max_message', 1000);
-            $this->conversation->messages[] = ['role' => 'user', 'content' => Str::limit(trim($text), $limit, '')];
+            $this->conversation->messages[] = ['role' => 'user', 'content' => Str::limit(trim($text), ChatRequest::maxMessage($this->visitor !== null), '')];
         }
         $user = $this->visitor === null ? $this->request->user() : null;
         $platform = new Platform($user, $this->conversation->id, $this->visitor);
@@ -82,16 +82,16 @@ class Turn
         unset($this->conversation->pending[$id]);
         $action = $pending ? ($this->actions[$pending['tool']] ?? null) : null;
         if (! $action) {
-            $this->conversation->messages[] = ['role' => 'user', 'content' => 'I clicked confirm, but that action is no longer available.'];
+            $this->conversation->report('I clicked confirm, but that action is no longer available.');
 
             return;
         }
         ($this->emit)(['type' => 'step', 'label' => $action['description']]);
         $outcome = Dispatcher::run($action, $pending['input'], $this->request);
         $this->card($action, $outcome);
-        $this->conversation->messages[] = ['role' => 'user', 'content' => 'I confirmed "'.$action['description'].'". '
+        $this->conversation->report('I confirmed "'.$action['description'].'". '
             .($outcome['ok'] ? 'It ran. The result: '.json_encode($outcome['result'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-                : 'It failed: '.json_encode(array_filter(['error' => $outcome['error'], 'errors' => $outcome['errors'] ?? null]), JSON_UNESCAPED_UNICODE))];
+                : 'It failed: '.json_encode(array_filter(['error' => $outcome['error'], 'errors' => $outcome['errors'] ?? null]), JSON_UNESCAPED_UNICODE)));
     }
 
     private function call(string $name, array $input): array

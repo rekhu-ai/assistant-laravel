@@ -24,6 +24,5 @@ class Tool
         public ?bool $confirm = null,
         public array $rules = [],
         public bool $guests = false,
-    ) {
-    }
+    ) {}
 }

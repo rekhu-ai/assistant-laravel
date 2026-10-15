@@ -4,6 +4,7 @@ namespace Rekhu\Assistant\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use Rekhu\Assistant\Catalogue\Actions;
 use Rekhu\Assistant\Catalogue\Pages;
 use Rekhu\Assistant\RekhuAssistant;
@@ -38,7 +39,7 @@ class StatusCommand extends Command
                 ->withHeaders(['x-api-key' => $key['key'], 'x-agent' => $key['agent']])->get('/v1/balance');
             if ($response->successful()) {
                 $this->info("  Connected: {$key['customer']} / {$key['agent']}");
-                \Rekhu\Assistant\Console\InstallCommand::credit($this, (array) $response->json());
+                InstallCommand::credit($this, (array) $response->json());
             } else {
                 $this->error('  Rekhu refused the key ('.$response->status().'): '.($response->json('error.message') ?? ''));
             }
@@ -49,7 +50,7 @@ class StatusCommand extends Command
         $this->line('<options=bold>Actions</> ('.count($actions).')'.($user ? '' : ' — all of them; give --user to see one user\'s'));
         $this->table(['name', 'route', 'confirm', 'input', 'description'], array_map(fn ($a) => [
             $a['name'], $a['verb'].' /'.$a['uri'], $a['confirm'] ? 'yes' : '',
-            implode(', ', array_keys((array) $a['schema']['properties'])), \Illuminate\Support\Str::limit($a['description'], 60),
+            implode(', ', array_keys((array) $a['schema']['properties'])), Str::limit($a['description'], 60),
         ], array_values($actions)));
 
         $pages = Pages::for($user);

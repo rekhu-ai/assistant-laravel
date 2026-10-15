@@ -395,8 +395,23 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 | `pages.exclude`, `pages.limit` | Route names never offered as pages, and the most pages offered. |
 | `help_path` | Another folder for the help topics. |
 | `conversation_minutes` | How long a conversation is kept (1440). |
+| `max_message` | The most characters in one message from a signed-in user (4000). |
 | `max_tokens`, `max_steps` | How long one answer may get, and how many action rounds one turn may take. |
 | `guests.*` | The public chat: its greeting, message length, steps and caps. |
+
+### Translations
+
+What your users read when something goes wrong (the assistant is unavailable, a message is empty, a visitor reached a cap) comes from the package's language file. Publish it to translate or reword it:
+
+```bash
+php artisan vendor:publish --tag=rekhu-assistant-lang
+```
+
+The file lands in `lang/vendor/rekhu-assistant/en/messages.php`; add a folder per language next to `en`. The assistant itself answers in the user's language.
+
+### Errors on the chat routes
+
+The chat routes always answer errors as JSON, also those of your own middleware: a sign-in that expired is a `401`, a CSRF token that expired a `419`, a cap a `429`, each with a `message`. The widget shows that message, and asks the user to reload on `401` and `419`.
 
 ## Commands
 
@@ -415,6 +430,16 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 | An action is missing | Run `php artisan rekhu:assistant --user=<id>`. A `can:` middleware hides an action from users who may not use it. |
 | "The assistant is not available right now" | The project's assistant is paused or at its monthly limit, your Rekhu credit is used up, the app could not reach Rekhu, or the key is wrong. The app's log says which; `php artisan rekhu:assistant` checks the key and the credit. |
 | CORS errors in the browser | In API mode, add `rekhu/assistant/*` to `paths` and your front end's domain to `allowed_origins` in `config/cors.php`. |
+
+## Testing
+
+```bash
+composer install
+composer test
+composer lint:check
+```
+
+The tests fake Rekhu, so they need no key and no network.
 
 ## Changelog
 

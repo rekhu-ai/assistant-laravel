@@ -2,6 +2,7 @@
 
 namespace Rekhu\Assistant\Catalogue;
 
+use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Gate;
@@ -46,10 +47,11 @@ class Routes
                 if (! $user) {
                     return false;             // middleware we cannot read: not for visitors
                 }
+
                 continue;
             }
             $name = explode(':', $middleware, 2)[0];
-            if (! $user && (in_array($name, ['auth', 'auth.basic', 'auth.session', 'verified', 'password.confirm', 'can', 'signed'], true) || class_exists($name) && is_a($name, \Illuminate\Auth\Middleware\Authenticate::class, true))) {
+            if (! $user && (in_array($name, ['auth', 'auth.basic', 'auth.session', 'verified', 'password.confirm', 'can', 'signed'], true) || class_exists($name) && is_a($name, Authenticate::class, true))) {
                 return false;
             }
             if ($user && ($middleware === 'guest' || str_starts_with($middleware, 'guest:'))) {

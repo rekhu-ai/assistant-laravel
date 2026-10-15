@@ -50,7 +50,7 @@ class InstallCommand extends Command
     }
 
     /** The account's credit, with a warning when a prepaid account has none: then the assistant cannot answer yet. */
-    public static function credit(\Illuminate\Console\Command $command, array $balance): void
+    public static function credit(Command $command, array $balance): void
     {
         $amount = (float) ($balance['balance']['amount'] ?? 0);
         $shown = (string) ($balance['balance']['display'] ?? '$'.number_format($amount, 2));

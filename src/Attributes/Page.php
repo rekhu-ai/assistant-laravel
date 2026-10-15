@@ -17,6 +17,5 @@ class Page
         public string $label,
         public string $help = '',
         public bool $hidden = false,
-    ) {
-    }
+    ) {}
 }

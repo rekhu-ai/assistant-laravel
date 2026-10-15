@@ -12,6 +12,7 @@ return [
     // The model the assistant answers with, and how long one answer and one turn may get.
     'model' => env('REKHU_ASSISTANT_MODEL', 'claude-sonnet-5'),
     'max_tokens' => 4000,
+    'max_message' => 4000,                  // characters per message from a signed-in user
     'max_steps' => 8,
 
     // Where the chat lives, and who may use it: the app's own middleware, so only signed-in users talk to it.

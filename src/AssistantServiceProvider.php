@@ -19,10 +19,12 @@ class AssistantServiceProvider extends ServiceProvider
     {
         $this->loadRoutesFrom(__DIR__.'/../routes/assistant.php');
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'rekhu-assistant');
+        $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'rekhu-assistant');
         Blade::component('rekhu-assistant', Widget::class);
 
         if ($this->app->runningInConsole()) {
             $this->publishes([__DIR__.'/../config/rekhu-assistant.php' => config_path('rekhu-assistant.php')], 'rekhu-assistant-config');
+            $this->publishes([__DIR__.'/../resources/lang' => $this->app->langPath('vendor/rekhu-assistant')], 'rekhu-assistant-lang');
             $this->commands([InstallCommand::class, StatusCommand::class]);
         }
     }

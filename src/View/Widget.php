@@ -3,6 +3,7 @@
 namespace Rekhu\Assistant\View;
 
 use Illuminate\View\Component;
+use Rekhu\Assistant\RekhuAssistant;
 
 /**
  * <x-rekhu-assistant /> in a layout: the chat button and panel. Signed-in users get their own chat; visitors get the
@@ -11,9 +12,7 @@ use Illuminate\View\Component;
  */
 class Widget extends Component
 {
-    public function __construct(public ?string $name = null, public ?string $greeting = null, public ?string $color = null)
-    {
-    }
+    public function __construct(public ?string $name = null, public ?string $greeting = null, public ?string $color = null) {}
 
     public function shouldRender(): bool
     {
@@ -33,7 +32,7 @@ class Widget extends Component
                 'greeting' => $this->greeting ?? ($visitor ? config('rekhu-assistant.guests.greeting') : null) ?? config('rekhu-assistant.greeting'),
                 'color' => $this->color ?? config('rekhu-assistant.color', '#4f46e5'),
             ],
-            'script' => route('rekhu.assistant.widget').'?v='.\Rekhu\Assistant\RekhuAssistant::VERSION,
+            'script' => route('rekhu.assistant.widget').'?v='.RekhuAssistant::VERSION,
         ]);
     }
 }
