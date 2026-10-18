@@ -36,6 +36,13 @@ return [
         'total_per_day' => 1000,            // messages from all visitors together
     ],
 
+    // Your quick questions for a fresh chat: a text, or one per language (['en' => …, 'ar' => …]). With "needs" (action
+    // names) a question is only offered to users who may use one of those actions. The front end decides how they look.
+    'quick' => [
+        // 'Where is my last order?',
+        // ['text' => ['en' => 'Cancel an order', 'nl' => 'Annuleer een bestelling'], 'needs' => ['cancel_order']],
+    ],
+
     // How it introduces itself, and its colour in the widget.
     'name' => env('REKHU_ASSISTANT_NAME', 'Assistant'),
     // A text, or one per language: ['en' => 'Hi! …', 'ar' => 'مرحباً! …']; the widget shows the one for the user's language.
@@ -44,6 +51,20 @@ return [
 
     // Your own rules for the assistant, in plain words: tone, what it never does, when it hands over to a person.
     'instructions' => '',
+
+    // What the assistant may do: every controller method marked #[Tool], plus the routes you add here (by route name or
+    // "VERB uri", for routes whose controller you do not want to touch, such as a vendor package's), minus the routes you
+    // block (route name or uri patterns): blocked ones are never offered, whatever their attribute says. Each call still
+    // runs through the route's own middleware and the user's rights.
+    'actions' => [
+        'include' => [
+            // 'invoices.download' => 'Download an invoice as PDF',
+            // 'POST api/orders/{order}/cancel' => ['description' => 'Cancel an order that has not shipped', 'confirm' => true],
+        ],
+        'exclude' => [
+            // 'admin.*', '*.destroy', 'api/internal/*',
+        ],
+    ],
 
     // Pages it may open: every named GET route, minus these name patterns, minus routes the user may not open.
     // A front end of its own (Nuxt, Next, a mobile app): its pages, opened at its own address. Each page is

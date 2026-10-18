@@ -13,6 +13,7 @@ use Rekhu\Assistant\Http\Requests\ChatRequest;
 use Rekhu\Assistant\Protocol;
 use Rekhu\Assistant\RekhuAssistant;
 use Rekhu\Assistant\Runtime\Conversation;
+use Rekhu\Assistant\Runtime\Quick;
 use Rekhu\Assistant\Runtime\Turn;
 use Rekhu\Assistant\Support\Failures;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -59,6 +60,8 @@ final class ChatController
             'conversation' => $conversation?->id,
             'messages' => $conversation?->transcript() ?? [],
             'greeting' => RekhuAssistant::greeting($visitor !== null),
+            // a fresh chat gets the developer's quick questions, as the user may use them
+            'quick' => $conversation ? null : (Quick::for($request->user()) ?: null),
         ], fn ($value) => $value !== null));
     }
 

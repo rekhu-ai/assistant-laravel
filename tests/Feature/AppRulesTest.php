@@ -24,35 +24,53 @@ final class AppRulesTest extends TestCase
 
     protected function defineRoutes($router): void
     {
-        $router->get('/api/branches', [BranchesController::class, 'index'])->name('v2.mgr.branches-list');
-        $router->post('/api/branches', [BranchesController::class, 'store'])->name('v2.mgr.branches-create');
+        $router->get('/api/orders', [OrdersController::class, 'index'])->name('api.orders.list');
+        $router->post('/api/orders', [OrdersController::class, 'store'])->name('api.orders.create');
     }
 
     public function test_the_apps_own_rule_decides_which_actions_a_user_gets(): void
     {
-        $this->assertSame(['v2_mgr_branches-list', 'v2_mgr_branches-create'], array_keys(Actions::for($this->user())));
+        $this->assertSame(['api_orders_list', 'api_orders_create'], array_keys(Actions::for($this->user())));
 
-        // the app checks rights by route name, as with Laratrust permissions
-        RekhuAssistant::authorizeUsing(fn ($user, $route) => $route->getName() === 'v2.mgr.branches-list');
+        // the app checks rights by route name, as with Laratrust or Spatie permissions
+        RekhuAssistant::authorizeUsing(fn ($user, $route) => $route->getName() === 'api.orders.list');
 
-        $this->assertSame(['v2_mgr_branches-list'], array_keys(Actions::for($this->user())));
-        $this->assertSame(['v2_mgr_branches-list', 'v2_mgr_branches-create'], array_keys(Actions::for($this->user(), all: true)));
+        $this->assertSame(['api_orders_list'], array_keys(Actions::for($this->user())));
+        $this->assertSame(['api_orders_list', 'api_orders_create'], array_keys(Actions::for($this->user(), all: true)));
+    }
+
+    public function test_the_config_adds_routes_as_actions_and_blocks_others(): void
+    {
+        Route::get('/api/invoices/{invoice}/pdf', fn () => 'pdf')->name('api.invoices.pdf');
+
+        config(['rekhu-assistant.actions.include' => [
+            'api.invoices.pdf' => 'Download an invoice as PDF',
+            'POST api/orders' => ['description' => 'Place an order for the user', 'name' => 'place_order', 'confirm' => true],
+        ]]);
+        $actions = Actions::for($this->user());
+        $this->assertSame('attribute', $actions['api_orders_list']['source']);
+        $this->assertSame('config', $actions['api_invoices_pdf']['source']);
+        $this->assertSame('Place an order for the user', $actions['place_order']['description']);
+        $this->assertTrue($actions['place_order']['confirm']);
+
+        config(['rekhu-assistant.actions.exclude' => ['api.orders.*']]);
+        $this->assertSame(['api_invoices_pdf'], array_keys(Actions::for($this->user())));
     }
 
     public function test_front_end_pages_come_from_the_config_and_from_code(): void
     {
         config(['rekhu-assistant.pages.frontend.list' => [
-            ['path' => '/dashboard/branches', 'label' => 'Branches', 'help' => 'All branches'],
+            ['path' => '/dashboard/orders', 'label' => 'Orders', 'help' => 'All orders'],
             ['path' => '/dashboard/finance', 'label' => 'Finance', 'can' => 'see-finance'],
         ]]);
-        RekhuAssistant::pagesUsing(fn ($user) => $user->id === 7 ? [['path' => '/dashboard/children/{child}', 'label' => 'Child']] : []);
+        RekhuAssistant::pagesUsing(fn ($user) => $user->id === 7 ? [['path' => '/dashboard/customers/{customer}', 'label' => 'Customer']] : []);
 
         $pages = Pages::for($this->user(7));
 
-        $this->assertSame(['dashboard.branches', 'dashboard.children'], array_keys($pages));
-        $this->assertSame('/dashboard/children/{child}', $pages['dashboard.children']['uri']);
-        $this->assertSame(['child'], $pages['dashboard.children']['parameters']);
-        $this->assertArrayNotHasKey('dashboard.children', Pages::for($this->user(8)));
+        $this->assertSame(['dashboard.orders', 'dashboard.customers'], array_keys($pages));
+        $this->assertSame('/dashboard/customers/{customer}', $pages['dashboard.customers']['uri']);
+        $this->assertSame(['customer'], $pages['dashboard.customers']['parameters']);
+        $this->assertArrayNotHasKey('dashboard.customers', Pages::for($this->user(8)));
     }
 
     public function test_an_api_offers_only_its_front_ends_pages(): void
@@ -70,14 +88,29 @@ final class AppRulesTest extends TestCase
     public function test_a_front_end_page_opens_at_the_front_ends_address(): void
     {
         config(['rekhu-assistant.pages.frontend.url' => 'https://app.example.com/']);
-        RekhuAssistant::pagesUsing(fn () => [['path' => '/dashboard/children/{child}', 'label' => 'Child']]);
-        $this->rekhuCalls('open_page', ['page' => 'dashboard.children', 'parameters' => ['child' => 12]], 'Here it is.');
+        RekhuAssistant::pagesUsing(fn () => [['path' => '/dashboard/customers/{customer}', 'label' => 'Customer']]);
+        $this->rekhuCalls('open_page', ['page' => 'dashboard.customers', 'parameters' => ['customer' => 12]], 'Here it is.');
 
-        $events = $this->events($this->actingAs($this->user())->post('/rekhu/assistant/chat', ['message' => 'Open child 12'], $this->headers())->streamedContent());
+        $events = $this->events($this->actingAs($this->user())->post('/rekhu/assistant/chat', ['message' => 'Open customer 12'], $this->headers())->streamedContent());
 
         $card = collect($events)->firstWhere('type', 'card');
-        $this->assertSame('https://app.example.com/dashboard/children/12', $card['url']);
-        Http::assertSent(fn (Request $r) => str_contains(str_replace('\\/', '/', $r->body()), 'dashboard.children: /dashboard/children/{child}'));
+        $this->assertSame('https://app.example.com/dashboard/customers/12', $card['url']);
+        Http::assertSent(fn (Request $r) => str_contains(str_replace('\\/', '/', $r->body()), 'dashboard.customers: /dashboard/customers/{customer}'));
+    }
+
+    public function test_a_fresh_chat_gets_the_quick_questions_this_user_may_ask(): void
+    {
+        config(['rekhu-assistant.quick' => [
+            'Where is my last order?',
+            ['text' => ['en' => 'Show my orders', 'ar' => 'اعرض طلباتي'], 'needs' => ['api_orders_list']],
+            ['text' => 'Place an order', 'needs' => ['api_orders_create']],
+        ]]);
+        RekhuAssistant::authorizeUsing(fn ($user, $route) => $route->getName() === 'api.orders.list');
+
+        $this->actingAs($this->user())->getJson('/rekhu/assistant/chat')->assertJsonPath('quick', ['Where is my last order?', 'Show my orders']);
+        app()->setLocale('ar');
+        $this->actingAs($this->user())->getJson('/rekhu/assistant/chat')->assertJsonPath('quick.1', 'اعرض طلباتي');
+        $this->actingAs($this->user())->getJson('/rekhu/assistant/chat?conversation=conv-12345678')->assertJsonMissingPath('quick');
     }
 
     /** Rekhu's first answer calls one tool, its second answers in text. */
@@ -106,15 +139,15 @@ final class AppRulesTest extends TestCase
     }
 }
 
-class BranchesController
+class OrdersController
 {
-    #[Tool('List the branches')]
+    #[Tool('List the orders')]
     public function index(): array
     {
         return [];
     }
 
-    #[Tool('Add a branch')]
+    #[Tool('Place an order')]
     public function store(): array
     {
         return [];

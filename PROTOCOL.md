@@ -120,7 +120,13 @@ Only what the user saw: their messages and the answers (markdown), at most the l
 Without `conversation`, the answer has no messages. Either way it may carry `"greeting"`: the server's first message (markdown) in the user's language (`Accept-Language`), which a client shows when the app gave it none of its own. A client asks for it once, when the chat opens.
 
 ```json
-{ "conversation": null, "messages": [], "greeting": "مرحباً! اسألني عن الفروع والحضور." }
+{ "messages": [], "greeting": "Hi! Ask me anything about your orders." }
+```
+
+Without `conversation`, it may also carry `"quick"`: the developer's quick questions for a fresh chat, in the user's language, only those the user may act on. A client may show them; a click sends the text as the user's message:
+
+```json
+{ "messages": [], "greeting": "Hi! Ask me anything about your orders.", "quick": ["Where is my last order?", "Show my invoices"] }
 ```
 
 When a request fails before the stream starts (4xx or 5xx), a JSON body may carry `"message"`: what to tell the user, in their language. A client shows it instead of its own words.

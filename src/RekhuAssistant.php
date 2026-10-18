@@ -27,13 +27,24 @@ use Illuminate\Support\Facades\Gate;
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.4.1';
+    public const VERSION = '0.5.0';
 
     private static ?Closure $tenant = null;
 
     private static ?Closure $authorize = null;
 
     private static ?Closure $pages = null;
+
+    /** A text from the config: as it is, or the one for the app's locale from ['en' => …, 'ar' => …], else English, else the first. */
+    public static function translated(mixed $value): ?string
+    {
+        if (is_array($value)) {
+            $locale = app()->getLocale();
+            $value = $value[$locale] ?? $value[strtok($locale, '-_')] ?? $value['en'] ?? (reset($value) ?: null);
+        }
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
 
     /** fn ($user, Route $route): bool — false hides the action or page from the user; the call itself is still checked by the route. */
     public static function authorizeUsing(?Closure $resolver): void
@@ -115,13 +126,7 @@ class RekhuAssistant
      */
     public static function greeting(bool $visitor = false): ?string
     {
-        $greeting = ($visitor ? config('rekhu-assistant.guests.greeting') : null) ?? config('rekhu-assistant.greeting');
-        if (is_array($greeting)) {
-            $locale = app()->getLocale();
-            $greeting = $greeting[$locale] ?? $greeting[strtok($locale, '-_')] ?? $greeting['en'] ?? (reset($greeting) ?: null);
-        }
-
-        return is_string($greeting) && $greeting !== '' ? $greeting : null;
+        return self::translated(($visitor ? config('rekhu-assistant.guests.greeting') : null) ?? config('rekhu-assistant.greeting'));
     }
 
     public static function helpPath(): string

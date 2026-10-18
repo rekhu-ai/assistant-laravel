@@ -317,6 +317,22 @@ public function cancel(Order $order) { … }           // DELETE: the user confi
 
 **Confirmations.** When an action needs confirming, nothing runs until the user clicks **Confirm** on the card. The action and its exact input are kept on the server; a typed "yes", or anything the model writes, cannot run it.
 
+### Actions from the config
+
+Routes whose controller you do not want to touch (a vendor package's, generated code) become actions from `config/rekhu-assistant.php`, by route name or `VERB uri`. And routes you never want offered are blocked there, whatever their attribute says:
+
+```php
+'actions' => [
+    'include' => [
+        'invoices.download' => 'Download an invoice as PDF',
+        'POST api/orders/{order}/cancel' => ['description' => 'Cancel an order that has not shipped', 'confirm' => true],
+    ],
+    'exclude' => ['admin.*', '*.destroy', 'api/internal/*'],
+],
+```
+
+An entry takes the same as `#[Tool]`: `description`, and optionally `name`, `confirm`, `rules`, `guests`. `php artisan rekhu:assistant` shows for each action whether it comes from an attribute or the config.
+
 ### Your own permission rule
 
 The assistant offers a user only the actions and pages they may use. It reads `can:` middleware itself. When your app checks rights another way (Laratrust, Spatie permissions, a permission derived from the route name), tell it, in a service provider:
@@ -342,6 +358,35 @@ public function index() { … }
 #[Page('Internal tools', hidden: true)]   // never offered
 public function tools() { … }
 ```
+
+## Quick questions
+
+Questions a user can click in a fresh chat, written by you in `config/rekhu-assistant.php`:
+
+```php
+'quick' => [
+    'Where is my last order?',
+    ['text' => ['en' => 'Cancel an order', 'nl' => 'Annuleer een bestelling'], 'needs' => ['cancel_order']],
+],
+```
+
+A text can be one per language. With `needs` (action names) a question is only offered to users who may use one of those actions. The package passes them on as you wrote them; how they look, and anything else your chat opens with, is up to your front end ([design your own chat](#design-your-own-chat)).
+
+## Design your own chat
+
+The package carries the conversation; how the chat looks is yours. The widget can be restyled completely from your own CSS (variables such as `--c`, `--rekhu-bg`, `--rekhu-width`, and parts such as `::part(panel)`), or replaced by a chat screen of your own on its headless client, which speaks to the same route with the same sign-in:
+
+```js
+import { createClient } from '@rekhu/assistant-widget';
+
+const chat = createClient({ endpoint: 'https://api.example.com/api/rekhu/assistant/chat', headers: () => ({ Authorization: `Bearer ${token}` }), credentials: 'omit' });
+const { greeting, quick } = await chat.history();
+await chat.send('Where is my order?', (event) => { /* text, step, card, error, done */ });
+```
+
+The [widget's README](https://www.npmjs.com/package/@rekhu/assistant-widget) lists every variable, part and method.
+
+How the assistant behaves, its tone and what it knows about your app and your users: write that in the **knowledge** of the project in your Rekhu account. It reaches the assistant on every call. `instructions` in the config is for rules that belong with the code.
 
 ## Help
 

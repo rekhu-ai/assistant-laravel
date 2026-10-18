@@ -8,7 +8,11 @@ use Illuminate\Support\Facades\Route as Router;
 use Illuminate\Support\Str;
 use Rekhu\Assistant\Attributes\Tool;
 
-/** The actions of the app: every route whose controller method carries #[Tool], as the user may use them. */
+/**
+ * The actions of the app, as the user may use them: every route whose controller method carries #[Tool], and the routes
+ * the config adds (actions.include, by route name or "VERB uri"), minus the routes the config blocks (actions.exclude,
+ * name or uri patterns), whatever their attribute says.
+ */
 class Actions
 {
     /**
@@ -18,8 +22,12 @@ class Actions
     public static function for(?Authenticatable $user, bool $all = false): array
     {
         $out = [];
+        $exclude = (array) config('rekhu-assistant.actions.exclude', []);
         foreach (Router::getRoutes()->getRoutes() as $route) {
-            $tool = Routes::attribute($route, Tool::class);
+            if ($exclude && (Str::is($exclude, (string) $route->getName()) || Str::is($exclude, $route->uri()))) {
+                continue;
+            }
+            [$tool, $source] = self::tool($route);
             if (! $tool || (! $all && (! $user && ! $tool->guests || ! Routes::allows($route, $user)))) {
                 continue;
             }
@@ -33,10 +41,33 @@ class Actions
                 'uri' => $route->uri(),
                 'route' => $route,
                 'schema' => Schema::of($route, $tool->rules, $user),
+                'source' => $source,
             ];
         }
 
         return $out;
+    }
+
+    /** The route's tool and where it comes from: the config (which wins) or the #[Tool] attribute; [null, null] for neither. */
+    private static function tool(Route $route): array
+    {
+        $include = (array) config('rekhu-assistant.actions.include', []);
+        $entry = $include[(string) $route->getName()] ?? $include[Routes::verb($route).' '.$route->uri()] ?? null;
+        if ($entry !== null) {
+            $entry = is_string($entry) ? ['description' => $entry] : (array) $entry;
+            if (! empty($entry['description'])) {
+                return [new Tool(
+                    description: (string) $entry['description'],
+                    name: $entry['name'] ?? null,
+                    confirm: $entry['confirm'] ?? null,
+                    rules: (array) ($entry['rules'] ?? []),
+                    guests: (bool) ($entry['guests'] ?? false),
+                ), 'config'];
+            }
+        }
+        $tool = Routes::attribute($route, Tool::class);
+
+        return [$tool, $tool ? 'attribute' : null];
     }
 
     /** Tool names the model sees: the attribute's, else the route name ("orders.reorder" → orders_reorder). */

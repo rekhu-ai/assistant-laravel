@@ -2,6 +2,13 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.5.0 · 18 October 2026
+
+- **Actions from the config**: `actions.include` turns routes into actions by route name or `VERB uri`, without touching their controller (a vendor package's routes, generated code); `actions.exclude` blocks routes by name or uri pattern, whatever their attribute says. `rekhu:assistant` shows where each action comes from.
+- **Quick questions**: `quick` in the config lists your own questions for a fresh chat, a text or one per language. A question with `needs` (action names) is only offered to users who may use one of those actions. The history answer carries them; your front end decides how they look.
+- **Design your own chat**: the widget is 0.2.0, which can be styled completely (CSS variables and parts) or replaced by your own chat screen on its headless client.
+- **Your project's knowledge** in the Rekhu account now reaches the assistant on every call: how it behaves and what it knows is kept there, next to `instructions` in the config.
+
 ## 0.4.1 · 18 October 2026
 
 - `REKHU_ASSISTANT_ROUTE_PAGES=false` (`pages.routes`): an API with a front end of its own offers only that front end's pages, not Laravel's own GET routes such as export downloads or payment pages.
