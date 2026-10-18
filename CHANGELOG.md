@@ -2,6 +2,10 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.5.1 · 19 October 2026
+
+- A key of another Rekhu product (Rekhu Builder's `laravel-dev` key, for one) is refused by `rekhu:assistant-install` and named by `rekhu:assistant`, with where to make an assistant key instead. Before, it was taken without a word, and the assistant's usage, limit and project knowledge did not apply.
+
 ## 0.5.0 · 18 October 2026
 
 - **Actions from the config**: `actions.include` turns routes into actions by route name or `VERB uri`, without touching their controller (a vendor package's routes, generated code); `actions.exclude` blocks routes by name or uri pattern, whatever their attribute says. `rekhu:assistant` shows where each action comes from.

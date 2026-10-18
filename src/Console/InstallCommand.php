@@ -4,6 +4,7 @@ namespace Rekhu\Assistant\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
+use Rekhu\Assistant\RekhuAssistant;
 
 /** Asks for the app key, checks it with Rekhu, writes it to .env and publishes the config. */
 class InstallCommand extends Command
@@ -17,6 +18,11 @@ class InstallCommand extends Command
         $key = trim((string) ($this->option('key') ?: $this->secret('The app key (Rekhu account → Projects → your app → Connection tab → Add key)')));
         if (! preg_match('/^agk_([a-z0-9-]+)_([a-z0-9-]+)_[A-Za-z0-9_-]+$/', $key, $m)) {
             $this->error('That is not a Rekhu app key (it starts with agk_).');
+
+            return self::FAILURE;
+        }
+        if ($wrong = RekhuAssistant::wrongProduct($m[2])) {
+            $this->error($wrong);
 
             return self::FAILURE;
         }

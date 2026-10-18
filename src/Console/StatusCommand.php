@@ -35,6 +35,9 @@ class StatusCommand extends Command
         if (! $key) {
             $this->warn('  No key. Run php artisan rekhu:assistant-install.');
         } else {
+            if ($wrong = RekhuAssistant::wrongProduct($key['agent'])) {
+                $this->error('  '.$wrong);
+            }
             $response = Http::baseUrl(rtrim((string) config('rekhu-assistant.platform'), '/'))->timeout(15)->acceptJson()
                 ->withHeaders(['x-api-key' => $key['key'], 'x-agent' => $key['agent']])->get('/v1/balance');
             if ($response->successful()) {

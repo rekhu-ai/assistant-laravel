@@ -27,7 +27,17 @@ use Illuminate\Support\Facades\Gate;
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.5.0';
+    public const VERSION = '0.5.1';
+
+    /** The Rekhu product the keys of this package belong to: agk_<account>_assistant_<secret>. */
+    public const PRODUCT = 'assistant';
+
+    /** Why a key of another Rekhu product (Rekhu Builder's laravel-dev, for one) does not work here; null when it is ours. */
+    public static function wrongProduct(string $agent): ?string
+    {
+        return $agent === self::PRODUCT ? null
+            : "This key is for {$agent}, not for Rekhu Assistant. Make an assistant key on the Connection tab of the project in your Rekhu account (Rekhu Assistant, one key per environment).";
+    }
 
     private static ?Closure $tenant = null;
 
