@@ -331,7 +331,13 @@ Routes whose controller you do not want to touch (a vendor package's, generated 
 ],
 ```
 
-An entry takes the same as `#[Tool]`: `description`, and optionally `name`, `confirm`, `rules`, `guests`. `php artisan rekhu:assistant` shows for each action whether it comes from an attribute or the config.
+An entry takes the same as `#[Tool]`: `description`, and optionally `name`, `confirm`, `rules`, `guests`, `label`.
+
+**What the user reads.** The description is for the assistant and is never shown. While an action runs, and on its confirm and done cards, the user reads its `label`: short, in their words, a text or one per language. Without a label they read a neutral "Working on it…" in their language.
+
+```php
+#[Tool('List the user\'s orders with number, product, status and total', label: ['en' => 'Looking up your orders', 'nl' => 'Ik zoek je bestellingen'])]
+``` `php artisan rekhu:assistant` shows for each action whether it comes from an attribute or the config.
 
 ### Your own permission rule
 

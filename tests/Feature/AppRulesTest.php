@@ -113,6 +113,24 @@ final class AppRulesTest extends TestCase
         $this->actingAs($this->user())->getJson('/rekhu/assistant/chat?conversation=conv-12345678')->assertJsonMissingPath('quick');
     }
 
+    public function test_the_user_reads_the_actions_label_never_its_description(): void
+    {
+        $this->rekhuCalls('v2_list', [], 'Two orders.');
+        config(['rekhu-assistant.actions.include' => ['api.orders.list' => ['description' => 'List the orders (for the model)', 'name' => 'v2_list', 'label' => ['en' => 'Looking up your orders', 'nl' => 'Ik zoek je bestellingen']]]]);
+
+        $events = $this->events($this->actingAs($this->user())->post('/rekhu/assistant/chat', ['message' => 'My orders'], $this->headers())->streamedContent());
+        $this->assertSame('Looking up your orders', collect($events)->firstWhere('type', 'step')['label']);
+    }
+
+    public function test_without_a_label_the_user_reads_a_neutral_step_in_their_language(): void
+    {
+        config(['rekhu-assistant.actions.include' => ['api.orders.list' => ['description' => 'List the orders (for the model)', 'name' => 'v2_list']]]);
+        app()->setLocale('ar');
+        $this->rekhuCalls('v2_list', [], 'طلبان.');
+        $events = $this->events($this->actingAs($this->user())->post('/rekhu/assistant/chat', ['message' => 'طلباتي'], $this->headers())->streamedContent());
+        $this->assertSame('جارٍ العمل على ذلك…', collect($events)->firstWhere('type', 'step')['label']);
+    }
+
     /** Rekhu's first answer calls one tool, its second answers in text. */
     private function rekhuCalls(string $tool, array $input, string $text): void
     {

@@ -9,4 +9,6 @@ return [
     'limit_visitor' => 'Je hebt het maximale aantal berichten voor vandaag verstuurd. Kom morgen terug, of log in.',
     'limit_ip' => 'Dat waren veel berichten tegelijk. Wacht even en probeer het opnieuw.',
     'limit_total' => 'De assistent is vandaag erg druk. Probeer het morgen opnieuw, of log in.',
+    'working' => 'Ik ben ermee bezig…',
+    'help' => 'Ik zoek in de hulp…',
 ];

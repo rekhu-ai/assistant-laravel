@@ -13,7 +13,9 @@ use Attribute;
  *
  * The input is read from the form request's rules; give "rules" when the action validates inline. "confirm" makes the
  * user click to confirm first (always so for DELETE routes). "guests" offers it in the public chat too, to visitors who
- * are not signed in; its route must then work without login.
+ * are not signed in; its route must then work without login. "label" is what the user reads while it runs and on its
+ * cards, short and in their words, a text or one per language (['en' => 'Looking up your orders', 'nl' => …]); the
+ * description is for the assistant and is never shown.
  */
 #[Attribute(Attribute::TARGET_METHOD)]
 class Tool
@@ -24,5 +26,6 @@ class Tool
         public ?bool $confirm = null,
         public array $rules = [],
         public bool $guests = false,
+        public string|array|null $label = null,
     ) {}
 }

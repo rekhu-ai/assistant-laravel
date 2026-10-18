@@ -9,4 +9,6 @@ return [
     'limit_visitor' => 'You have sent the most messages for today. Please come back tomorrow, or sign in.',
     'limit_ip' => 'That was a lot of messages at once. Wait a while and try again.',
     'limit_total' => 'The assistant is very busy today. Please try again tomorrow, or sign in.',
+    'working' => 'Working on it…',
+    'help' => 'Looking in the help…',
 ];

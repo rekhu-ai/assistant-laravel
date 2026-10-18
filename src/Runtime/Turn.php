@@ -86,7 +86,7 @@ class Turn
 
             return;
         }
-        ($this->emit)(['type' => 'step', 'label' => $action['description']]);
+        ($this->emit)(['type' => 'step', 'label' => $action['label'] ?? __('rekhu-assistant::messages.working')]);
         $outcome = Dispatcher::run($action, $pending['input'], $this->request);
         $this->card($action, $outcome);
         $this->conversation->report('I confirmed "'.$action['description'].'". '
@@ -100,7 +100,7 @@ class Turn
             return $this->openPage($input);
         }
         if ($name === 'help') {
-            ($this->emit)(['type' => 'step', 'label' => 'Looking in the help']);
+            ($this->emit)(['type' => 'step', 'label' => __('rekhu-assistant::messages.help')]);
             $found = Help::search((string) ($input['question'] ?? ''));
 
             return ['ok' => true, 'result' => $found ? ['topics' => $found] : ['topics' => [], 'note' => 'nothing in the help about this']];
@@ -114,11 +114,11 @@ class Turn
             $this->conversation->pending[$id] = ['tool' => $name, 'input' => $input];
             // the card shows what the user filled in, not the record ids in the address (the answer names the record)
             $shown = array_diff_key($input, array_flip($action['route']->parameterNames()));
-            ($this->emit)(['type' => 'card', 'kind' => 'confirm', 'id' => $id, 'title' => $action['description'], 'input' => (object) $shown, 'danger' => $action['verb'] === 'DELETE']);
+            ($this->emit)(['type' => 'card', 'kind' => 'confirm', 'id' => $id, 'title' => $action['label'] ?? $action['description'], 'input' => (object) $shown, 'danger' => $action['verb'] === 'DELETE']);
 
             return ['ok' => true, 'result' => ['status' => 'needs_confirmation', 'note' => 'The user sees a confirm button for exactly this input. Nothing has happened yet.']];
         }
-        ($this->emit)(['type' => 'step', 'label' => $action['description']]);
+        ($this->emit)(['type' => 'step', 'label' => $action['label'] ?? __('rekhu-assistant::messages.working')]);
         $outcome = Dispatcher::run($action, $input, $this->request);
         $this->card($action, $outcome);
 
@@ -161,8 +161,8 @@ class Turn
             return;
         }
         ($this->emit)($outcome['ok']
-            ? array_filter(['type' => 'card', 'kind' => 'done', 'title' => $action['description'], 'message' => $outcome['result']['message'] ?? null, 'url' => $outcome['result']['page'] ?? null])
-            : ['type' => 'card', 'kind' => 'failed', 'title' => $action['description'], 'message' => $outcome['error']]);
+            ? array_filter(['type' => 'card', 'kind' => 'done', 'title' => $action['label'] ?? $action['description'], 'message' => $outcome['result']['message'] ?? null, 'url' => $outcome['result']['page'] ?? null])
+            : ['type' => 'card', 'kind' => 'failed', 'title' => $action['label'] ?? $action['description'], 'message' => $outcome['error']]);
     }
 
     private function tools(): array

@@ -2,6 +2,10 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.5.2 · 19 October 2026
+
+- **What the user reads while an action runs.** `label` on `#[Tool]` and in `actions.include` (a text or one per language) is shown on the step line and on the action's cards. Without one the user reads a neutral "Working on it…" in their language; the description, which is written for the assistant, is no longer shown. "Looking in the help…" comes in the user's language too.
+
 ## 0.5.1 · 19 October 2026
 
 - A key of another Rekhu product (Rekhu Builder's `laravel-dev` key, for one) is refused by `rekhu:assistant-install` and named by `rekhu:assistant`, with where to make an assistant key instead. Before, it was taken without a word, and the assistant's usage, limit and project knowledge did not apply.

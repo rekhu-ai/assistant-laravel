@@ -7,6 +7,7 @@ use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Route as Router;
 use Illuminate\Support\Str;
 use Rekhu\Assistant\Attributes\Tool;
+use Rekhu\Assistant\RekhuAssistant;
 
 /**
  * The actions of the app, as the user may use them: every route whose controller method carries #[Tool], and the routes
@@ -36,6 +37,7 @@ class Actions
             $out[$name] = [
                 'name' => $name,
                 'description' => $tool->description,
+                'label' => RekhuAssistant::translated($tool->label),
                 'confirm' => $tool->confirm ?? $verb === 'DELETE',
                 'verb' => $verb,
                 'uri' => $route->uri(),
@@ -62,6 +64,7 @@ class Actions
                     confirm: $entry['confirm'] ?? null,
                     rules: (array) ($entry['rules'] ?? []),
                     guests: (bool) ($entry['guests'] ?? false),
+                    label: $entry['label'] ?? null,
                 ), 'config'];
             }
         }
