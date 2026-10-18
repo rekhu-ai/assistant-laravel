@@ -1,4 +1,4 @@
-/*! @rekhu/assistant-widget 0.1.2 · https://rekhu.com · generated from src/index.js, do not edit */
+/*! @rekhu/assistant-widget 0.1.3 · https://rekhu.com · generated from src/index.js, do not edit */
 (() => {
 /*
  * The Rekhu Assistant widget: a chat button and panel as <rekhu-assistant>, in its own shadow DOM so the app's CSS and
@@ -13,9 +13,9 @@ const PROTOCOL = 1;
 const CSS = `
 :host { all: initial; --c: #4f46e5; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #111827; }
 * { box-sizing: border-box; }
-.launcher { position: fixed; right: 20px; bottom: 20px; z-index: 2147483000; width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--c); color: #fff; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,.18); display: grid; place-items: center; }
+.launcher { position: fixed; inset-inline-end: 20px; bottom: 20px; z-index: 2147483000; width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--c); color: #fff; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,.18); display: grid; place-items: center; }
 .launcher svg { width: 26px; height: 26px; }
-.panel { position: fixed; right: 20px; bottom: 88px; z-index: 2147483000; width: min(400px, calc(100vw - 32px)); height: min(600px, calc(100vh - 120px)); background: #fff; border-radius: 16px; box-shadow: 0 16px 48px rgba(0,0,0,.2); display: none; flex-direction: column; overflow: hidden; }
+.panel { position: fixed; inset-inline-end: 20px; bottom: 88px; z-index: 2147483000; width: min(400px, calc(100vw - 32px)); height: min(600px, calc(100vh - 120px)); background: #fff; border-radius: 16px; box-shadow: 0 16px 48px rgba(0,0,0,.2); display: none; flex-direction: column; overflow: hidden; }
 .panel.open { display: flex; }
 header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; background: var(--c); color: #fff; }
 header strong { flex: 1; font-size: 15px; }
@@ -23,13 +23,13 @@ header button { background: transparent; border: 0; color: #fff; opacity: .85; c
 header button:hover { opacity: 1; background: rgba(255,255,255,.15); }
 .log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: #f9fafb; }
 .msg { max-width: 88%; padding: 8px 12px; border-radius: 14px; white-space: normal; word-wrap: break-word; }
-.msg p { margin: 0 0 6px; } .msg p:last-child { margin: 0; } .msg ul, .msg ol { margin: 4px 0; padding-left: 20px; }
+.msg p { margin: 0 0 6px; } .msg p:last-child { margin: 0; } .msg ul, .msg ol { margin: 4px 0; padding-inline-start: 20px; }
 .msg a { color: var(--c); }
-.user { align-self: flex-end; background: var(--c); color: #fff; border-bottom-right-radius: 4px; }
+.user { align-self: flex-end; background: var(--c); color: #fff; border-end-end-radius: 4px; }
 .user a { color: #fff; }
-.bot { align-self: flex-start; background: #fff; border: 1px solid #e5e7eb; border-bottom-left-radius: 4px; }
+.bot { align-self: flex-start; background: #fff; border: 1px solid #e5e7eb; border-end-start-radius: 4px; }
 .step { align-self: flex-start; font-size: 12px; color: #6b7280; }
-.step::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--c); animation: pulse 1s infinite alternate; }
+.step::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-inline-end: 6px; border-radius: 50%; background: var(--c); animation: pulse 1s infinite alternate; }
 .step.over::before { animation: none; background: #9ca3af; }
 @keyframes pulse { from { opacity: .3 } to { opacity: 1 } }
 .card { align-self: stretch; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
@@ -76,10 +76,41 @@ const markdown = (text) => {
     return out.join('');
 };
 
-const MESSAGES = {
-    signedOut: 'Your session has ended. Reload the page and sign in again.',
-    busy: 'That was a lot of messages at once. Wait a minute and try again.',
-    unavailable: 'The assistant is not available right now. Please try again in a moment.',
+// the widget's own words, in the user's language (the "locale" option, else the page's lang, else the browser's);
+// the "texts" option overrides any of them
+const TEXTS = {
+    en: {
+        signedOut: 'Your session has ended. Reload the page and sign in again.',
+        busy: 'That was a lot of messages at once. Wait a minute and try again.',
+        unavailable: 'The assistant is not available right now. Please try again in a moment.',
+        failed: 'Something went wrong.',
+        name: 'Assistant', new: 'New', newTitle: 'Start a new conversation', close: 'Close', message: 'Message',
+        placeholder: 'Type a message…', send: 'Send', open: 'Open', confirm: 'Confirm', cancel: 'Cancel',
+        confirmed: 'Confirmed', cancelled: 'Cancel that',
+    },
+    ar: {
+        signedOut: 'انتهت جلستك. أعد تحميل الصفحة وسجّل الدخول من جديد.',
+        busy: 'رسائل كثيرة في وقت واحد. انتظر دقيقة ثم حاول مرة أخرى.',
+        unavailable: 'المساعد غير متاح الآن. حاول مرة أخرى بعد قليل.',
+        failed: 'حدث خطأ ما.',
+        name: 'المساعد', new: 'جديد', newTitle: 'ابدأ محادثة جديدة', close: 'إغلاق', message: 'الرسالة',
+        placeholder: 'اكتب رسالتك…', send: 'إرسال', open: 'فتح', confirm: 'تأكيد', cancel: 'إلغاء',
+        confirmed: 'تم التأكيد', cancelled: 'ألغِ ذلك',
+    },
+    nl: {
+        signedOut: 'Je sessie is verlopen. Laad de pagina opnieuw en log weer in.',
+        busy: 'Dat waren veel berichten tegelijk. Wacht een minuut en probeer het opnieuw.',
+        unavailable: 'De assistent is nu niet beschikbaar. Probeer het zo opnieuw.',
+        failed: 'Er ging iets mis.',
+        name: 'Assistent', new: 'Nieuw', newTitle: 'Begin een nieuw gesprek', close: 'Sluiten', message: 'Bericht',
+        placeholder: 'Typ een bericht…', send: 'Verstuur', open: 'Openen', confirm: 'Bevestigen', cancel: 'Annuleren',
+        confirmed: 'Bevestigd', cancelled: 'Annuleer dat',
+    },
+};
+
+const language = (locale) => {
+    const wanted = String(locale || document.documentElement.lang || navigator.language || 'en').toLowerCase().split(/[-_]/)[0];
+    return TEXTS[wanted] ? wanted : 'en';
 };
 
 const build = () => class RekhuAssistantElement extends HTMLElement {
@@ -88,6 +119,11 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         this.options = { ...(this.options || {}), ...options };
         if (this.shadowRoot && options.color) this.style.setProperty('--c', options.color);
         return this;
+    }
+
+    /** The widget's own words in the user's language. */
+    get t() {
+        return { ...TEXTS[language(this.settings.locale)], ...(this.settings.texts || {}) };
     }
 
     get settings() {
@@ -99,17 +135,20 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
     connectedCallback() {
         if (this.shadowRoot) return;
         const s = this.settings;
+        const t = this.t;
         if (!s.endpoint) { console.error('<rekhu-assistant>: no endpoint; pass data-settings or mount({ endpoint })'); return; }
         this.conversation = this.load('conversation');
         this.busy = false;
         const root = this.attachShadow({ mode: 'open' });
         root.innerHTML = `<style>${CSS}</style>
-<button class="launcher" part="launcher" aria-label="${escape(s.name || 'Assistant')}">${ICON}</button>
-<section class="panel" part="panel" role="dialog" aria-label="${escape(s.name || 'Assistant')}">
-  <header><strong>${escape(s.name || 'Assistant')}</strong><button class="restart" title="Start a new conversation">New</button><button class="close" aria-label="Close">✕</button></header>
+<button class="launcher" part="launcher" aria-label="${escape(s.name || t.name)}">${ICON}</button>
+<section class="panel" part="panel" role="dialog" aria-label="${escape(s.name || t.name)}">
+  <header><strong>${escape(s.name || t.name)}</strong><button class="restart" title="${escape(t.newTitle)}">${escape(t.new)}</button><button class="close" aria-label="${escape(t.close)}">✕</button></header>
   <div class="log" aria-live="polite"></div>
-  <form><textarea rows="1" placeholder="${escape(s.placeholder || 'Type a message…')}" aria-label="Message"></textarea><button class="btn" type="submit">Send</button></form>
+  <form><textarea rows="1" placeholder="${escape(s.placeholder || t.placeholder)}" aria-label="${escape(t.message)}"></textarea><button class="btn" type="submit">${escape(t.send)}</button></form>
 </section>`;
+        // "dir": the page's direction is followed by itself (the host inherits it); an explicit one wins
+        if (s.dir === 'rtl' || s.dir === 'ltr') this.setAttribute('dir', s.dir);
         if (s.color) this.style.setProperty('--c', s.color);
         this.panel = root.querySelector('.panel');
         this.log = root.querySelector('.log');
@@ -127,7 +166,8 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
             if (link && this.go(link.getAttribute('href'))) e.preventDefault();
         });
         this.greet();
-        if (this.conversation) this.restore();
+        // the conversation so far, and the server's greeting when the app gave none here
+        if (this.conversation || !s.greeting) this.restore();
         if (this.load('open') === '1') this.toggle(true);
     }
 
@@ -198,9 +238,11 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
     // after a reload, the conversation goes on where it was
     async restore() {
         try {
-            const response = await this.call('GET', null, 'application/json', `${this.settings.endpoint.includes('?') ? '&' : '?'}conversation=${encodeURIComponent(this.conversation)}`);
+            const query = this.conversation ? `${this.settings.endpoint.includes('?') ? '&' : '?'}conversation=${encodeURIComponent(this.conversation)}` : '';
+            const response = await this.call('GET', null, 'application/json', query);
             if (!response.ok) return;
             const data = await response.json();
+            if (!this.settings.greeting && data.greeting) { this.serverGreeting = data.greeting; this.greet(); }
             for (const line of data.messages || []) this.add(line.role, markdown(line.text));
         } catch { /* the greeting stays */ }
     }
@@ -213,7 +255,8 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
 
     greet() {
         this.log.innerHTML = '';
-        if (this.settings.greeting) this.add('bot', markdown(this.settings.greeting));
+        const greeting = this.settings.greeting || this.serverGreeting;
+        if (greeting) this.add('bot', markdown(greeting));
     }
 
     async restart() {
@@ -255,11 +298,14 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         let step = null;
         const endStep = () => { if (step) { step.classList.add('over'); step = null; } };
         try {
+            const t = this.t;
             const locale = this.settings.locale === undefined ? (navigator.language || null) : this.settings.locale;
             const response = await this.call('POST', { ...payload, conversation: this.conversation, locale }, 'text/event-stream');
-            if (response.status === 401 || response.status === 419) { this.emit('unauthorized', { status: response.status }); throw new Error(MESSAGES.signedOut); }
-            if (response.status === 429) throw new Error((await response.json().catch(() => ({}))).message || MESSAGES.busy);
-            if (!response.ok || !response.body) throw new Error(MESSAGES.unavailable);
+            // the server says why in the user's language; the widget's own words when it says nothing
+            const said = async () => (response.headers.get('content-type') || '').includes('json') ? ((await response.json().catch(() => ({}))).message || '') : '';
+            if (response.status === 401 || response.status === 419) { this.emit('unauthorized', { status: response.status }); throw new Error(t.signedOut); }
+            if (response.status === 429) throw new Error((await said()) || t.busy);
+            if (!response.ok || !response.body) throw new Error((await said()) || t.unavailable);
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
@@ -288,7 +334,7 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
                 }
             }
         } catch (error) {
-            this.add('error', escape(error.message || 'Something went wrong.'));
+            this.add('error', escape(error.message || this.t.failed));
         } finally {
             endStep();
             this.busy = false;
@@ -296,12 +342,17 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         }
     }
 
+    /** The arrow on a link button points the way the text reads. */
+    get arrow() {
+        return getComputedStyle(this).direction === 'rtl' ? '←' : '→';
+    }
+
     card(event) {
         if (event.kind === 'page') {
-            this.add('card', `<div class="row"><a class="btn" href="${escape(event.url)}" target="_top">${escape(event.label)} →</a></div>`);
+            this.add('card', `<div class="row"><a class="btn" href="${escape(event.url)}" target="_top">${escape(event.label)} ${this.arrow}</a></div>`);
         }
         if (event.kind === 'done' || event.kind === 'failed') {
-            const link = event.url ? `<div class="row"><a class="btn light" href="${escape(event.url)}" target="_top">Open →</a></div>` : '';
+            const link = event.url ? `<div class="row"><a class="btn light" href="${escape(event.url)}" target="_top">${escape(this.t.open)} ${this.arrow}</a></div>` : '';
             this.add(`card ${event.kind}`, `<div class="title">${event.kind === 'done' ? '✓' : '✕'} ${escape(event.title)}</div>${event.message ? `<div class="detail">${escape(event.message)}</div>` : ''}${link}`);
             // the app's data changed: a single page app refreshes what it shows
             if (event.kind === 'done') {
@@ -311,18 +362,18 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         }
         if (event.kind === 'confirm') {
             const rows = Object.entries(event.input || {}).map(([k, v]) => `<dt>${escape(k.replace(/_/g, ' '))}</dt><dd>${escape(typeof v === 'object' ? JSON.stringify(v) : v)}</dd>`).join('');
-            const el = this.add('card', `<div class="title">${escape(event.title)}</div>${rows ? `<dl>${rows}</dl>` : ''}<div class="row"><button class="btn ${event.danger ? 'danger' : ''}" data-yes>Confirm</button><button class="btn light" data-no>Cancel</button></div>`);
+            const el = this.add('card', `<div class="title">${escape(event.title)}</div>${rows ? `<dl>${rows}</dl>` : ''}<div class="row"><button class="btn ${event.danger ? 'danger' : ''}" data-yes>${escape(this.t.confirm)}</button><button class="btn light" data-no>${escape(this.t.cancel)}</button></div>`);
             const buttons = el.querySelectorAll('button');
             el.querySelector('[data-yes]').addEventListener('click', () => {
                 if (this.busy) return;
                 buttons.forEach((b) => { b.disabled = true; });
-                this.add('user', markdown('Confirmed'));
+                this.add('user', markdown(this.t.confirmed));
                 this.post({ confirm: event.id });
             });
             el.querySelector('[data-no]').addEventListener('click', () => {
                 if (this.busy) return;
                 buttons.forEach((b) => { b.disabled = true; });
-                this.add('user', markdown('Cancel that'));
+                this.add('user', markdown(this.t.cancelled));
                 this.post({ message: 'No, cancel that.' });
             });
         }

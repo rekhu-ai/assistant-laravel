@@ -24,7 +24,9 @@ class Pages
             $exclude = array_values(array_diff($exclude, ['login', 'register']));
         }
         $out = [];
-        foreach (Router::getRoutes()->getRoutes() as $route) {
+        // an API with a front end of its own has no pages in Laravel to send its users to: only the front end's count
+        $routes = (bool) config('rekhu-assistant.pages.routes', true) ? Router::getRoutes()->getRoutes() : [];
+        foreach ($routes as $route) {
             $name = $route->getName();
             if (! $name || ! in_array('GET', $route->methods(), true) || Str::is($exclude, $name) || str_starts_with($route->uri(), 'api/')) {
                 continue;

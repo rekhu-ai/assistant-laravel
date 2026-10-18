@@ -2,6 +2,14 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.4.1 · 18 October 2026
+
+- `REKHU_ASSISTANT_ROUTE_PAGES=false` (`pages.routes`): an API with a front end of its own offers only that front end's pages, not Laravel's own GET routes such as export downloads or payment pages.
+- The README says that `pagesUsing()` is also called without a user: for a visitor of the public chat and for `rekhu:assistant` without `--user`.
+- **Arabic and Dutch.** What users read from the package (not available, limits, an empty message) comes in Arabic and Dutch as well as English, by the app's locale.
+- **The greeting for a front end of its own.** The chat's history answer carries the greeting in the user's language, so a Nuxt, Next or mobile front end shows it without setting it again. `greeting` in the config can be one text per language: `['en' => 'Hi!', 'ar' => 'مرحباً!']`.
+- The widget is 0.1.3: it follows a right-to-left page (it sits on the left and reads from right to left), its own words come in English, Arabic and Dutch (`texts` overrides them), and it shows the server's message when a request fails.
+
 ## 0.4.0 · 18 October 2026
 
 - **Your own permission rule.** `RekhuAssistant::authorizeUsing(fn ($user, $route) => …)` tells the assistant which actions and pages a user may use, for apps that check rights their own way (Laratrust, Spatie, a permission per route name) instead of `can:` middleware. Each call is still checked by the route's own middleware.

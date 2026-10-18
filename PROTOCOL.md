@@ -117,6 +117,14 @@ A `text` after a `step` or a `card` starts a new answer bubble.
 
 Only what the user saw: their messages and the answers (markdown), at most the last 30, without the tool traffic and without cards.
 
+Without `conversation`, the answer has no messages. Either way it may carry `"greeting"`: the server's first message (markdown) in the user's language (`Accept-Language`), which a client shows when the app gave it none of its own. A client asks for it once, when the chat opens.
+
+```json
+{ "conversation": null, "messages": [], "greeting": "مرحباً! اسألني عن الفروع والحضور." }
+```
+
+When a request fails before the stream starts (4xx or 5xx), a JSON body may carry `"message"`: what to tell the user, in their language. A client shows it instead of its own words.
+
 ## DELETE: start over
 
 `DELETE <endpoint>` with `{"conversation": "8f3a…"}` forgets that conversation. Answers `204`.

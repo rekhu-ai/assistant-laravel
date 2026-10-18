@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\Gate;
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.4.0';
+    public const VERSION = '0.4.1';
 
     private static ?Closure $tenant = null;
 
@@ -46,7 +46,7 @@ class RekhuAssistant
         return ! self::$authorize || (bool) (self::$authorize)($user, $route);
     }
 
-    /** fn ($user): array — the front end's pages this user may open, each ['path', 'label', 'help'?, 'name'?]. */
+    /** fn (?$user): array — the front end's pages this user may open, each ['path', 'label', 'help'?, 'name'?]; $user is null for a visitor and for rekhu:assistant without --user. */
     public static function pagesUsing(?Closure $resolver): void
     {
         self::$pages = $resolver;
@@ -107,6 +107,21 @@ class RekhuAssistant
     public static function userRef(?Authenticatable $user): string
     {
         return $user ? (string) $user->getAuthIdentifier() : '';
+    }
+
+    /**
+     * The first message of the chat, in the user's language: the config's greeting (guests.greeting for a visitor), a
+     * text or one per language (['ar' => …, 'en' => …]), picked by the app's locale, else English, else the first.
+     */
+    public static function greeting(bool $visitor = false): ?string
+    {
+        $greeting = ($visitor ? config('rekhu-assistant.guests.greeting') : null) ?? config('rekhu-assistant.greeting');
+        if (is_array($greeting)) {
+            $locale = app()->getLocale();
+            $greeting = $greeting[$locale] ?? $greeting[strtok($locale, '-_')] ?? $greeting['en'] ?? (reset($greeting) ?: null);
+        }
+
+        return is_string($greeting) && $greeting !== '' ? $greeting : null;
     }
 
     public static function helpPath(): string

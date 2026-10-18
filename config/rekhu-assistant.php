@@ -38,6 +38,7 @@ return [
 
     // How it introduces itself, and its colour in the widget.
     'name' => env('REKHU_ASSISTANT_NAME', 'Assistant'),
+    // A text, or one per language: ['en' => 'Hi! …', 'ar' => 'مرحباً! …']; the widget shows the one for the user's language.
     'greeting' => 'Hi! Ask me anything about this app, or tell me what you want done.',
     'color' => '#4f46e5',
 
@@ -49,6 +50,8 @@ return [
     // ['path' => '/orders/{order}', 'label' => 'Order', 'help' => 'What it shows', 'can' => 'a gate, optional'];
     // RekhuAssistant::pagesUsing() adds pages from code, as the user may open them.
     'pages' => [
+        // false: only the front end's pages below; Laravel's own GET routes are not offered (an API with its own front end)
+        'routes' => (bool) env('REKHU_ASSISTANT_ROUTE_PAGES', true),
         'frontend' => [
             'url' => env('REKHU_ASSISTANT_FRONTEND_URL'),
             'list' => [],

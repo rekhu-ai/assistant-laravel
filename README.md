@@ -272,12 +272,18 @@ REKHU_ASSISTANT_FRONTEND_URL=https://app.example.com
 ],
 ```
 
-When your permissions are not gates, give the pages from code, as the user may open them:
+When your permissions are not gates, give the pages from code, as the user may open them. The user is `null` for a visitor of the public chat and for `php artisan rekhu:assistant` without `--user`:
 
 ```php
-RekhuAssistant::pagesUsing(fn ($user) => collect(config('my-app.pages'))
+RekhuAssistant::pagesUsing(fn ($user) => ! $user ? [] : collect(config('my-app.pages'))
     ->filter(fn ($page) => $user->isAbleTo($page['permission']))
     ->all());
+```
+
+Laravel's own GET routes (an export download, a payment page) are offered as pages too. When all your users' pages live in the front end, turn that off:
+
+```dotenv
+REKHU_ASSISTANT_ROUTE_PAGES=false
 ```
 
 The widget's `navigate` option opens them in your router (add the front end's origin to `navigateOrigins`).

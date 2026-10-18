@@ -44,10 +44,26 @@ final class ChatTest extends TestCase
 
         $this->actingAs($this->user())->getJson('/rekhu/assistant/chat?conversation=conv-12345678')
             ->assertOk()
-            ->assertExactJson(['conversation' => 'conv-12345678', 'messages' => [
+            ->assertExactJson(['conversation' => 'conv-12345678', 'greeting' => 'Hi! Ask me anything about this app, or tell me what you want done.', 'messages' => [
                 ['role' => 'user', 'text' => 'Where is my order?'],
                 ['role' => 'bot', 'text' => 'Your order ships tomorrow.'],
             ]]);
+    }
+
+    public function test_a_fresh_chat_gets_the_greeting_in_the_users_language(): void
+    {
+        config(['rekhu-assistant.greeting' => ['en' => 'Hi!', 'ar' => 'مرحباً!']]);
+
+        $this->actingAs($this->user())->getJson('/rekhu/assistant/chat')->assertExactJson(['messages' => [], 'greeting' => 'Hi!']);
+        app()->setLocale('ar');
+        $this->actingAs($this->user())->getJson('/rekhu/assistant/chat')->assertJsonPath('greeting', 'مرحباً!');
+    }
+
+    public function test_the_users_read_the_package_in_their_language(): void
+    {
+        app()->setLocale('ar');
+
+        $this->assertSame('المساعد غير متاح الآن. حاول مرة أخرى بعد قليل.', __('rekhu-assistant::messages.unavailable'));
     }
 
     public function test_what_the_app_reports_for_the_user_stays_out_of_the_history(): void

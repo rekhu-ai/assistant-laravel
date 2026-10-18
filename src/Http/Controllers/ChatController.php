@@ -11,6 +11,7 @@ use Rekhu\Assistant\Http\EventStream;
 use Rekhu\Assistant\Http\Middleware\IdentifyVisitor;
 use Rekhu\Assistant\Http\Requests\ChatRequest;
 use Rekhu\Assistant\Protocol;
+use Rekhu\Assistant\RekhuAssistant;
 use Rekhu\Assistant\Runtime\Conversation;
 use Rekhu\Assistant\Runtime\Turn;
 use Rekhu\Assistant\Support\Failures;
@@ -49,9 +50,16 @@ final class ChatController
     /** What the user saw: their own messages and the assistant's answers. */
     public function history(Request $request): JsonResponse
     {
-        $conversation = Conversation::open($request->user(), (string) $request->query('conversation'), IdentifyVisitor::of($request));
+        $visitor = IdentifyVisitor::of($request);
+        // without a conversation: only the greeting, for a chat that opens fresh
+        $asked = (string) $request->query('conversation');
+        $conversation = $asked !== '' ? Conversation::open($request->user(), $asked, $visitor) : null;
 
-        return response()->json(['conversation' => $conversation->id, 'messages' => $conversation->transcript()]);
+        return response()->json(array_filter([
+            'conversation' => $conversation?->id,
+            'messages' => $conversation?->transcript() ?? [],
+            'greeting' => RekhuAssistant::greeting($visitor !== null),
+        ], fn ($value) => $value !== null));
     }
 
     public function forget(Request $request): Response

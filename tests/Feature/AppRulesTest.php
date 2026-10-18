@@ -55,6 +55,18 @@ final class AppRulesTest extends TestCase
         $this->assertArrayNotHasKey('dashboard.children', Pages::for($this->user(8)));
     }
 
+    public function test_an_api_offers_only_its_front_ends_pages(): void
+    {
+        Route::get('/invitations/{hash}', fn () => 'ok')->name('invitation-page');
+        RekhuAssistant::pagesUsing(fn ($user) => ! $user ? [] : [['path' => '/dashboard', 'label' => 'Home']]);
+
+        $this->assertContains('invitation-page', array_keys(Pages::for($this->user())));
+        $this->assertSame([], array_filter(Pages::for(null), fn ($page) => ! empty($page['frontend'])));
+
+        config(['rekhu-assistant.pages.routes' => false]);
+        $this->assertSame(['dashboard'], array_keys(Pages::for($this->user())));
+    }
+
     public function test_a_front_end_page_opens_at_the_front_ends_address(): void
     {
         config(['rekhu-assistant.pages.frontend.url' => 'https://app.example.com/']);

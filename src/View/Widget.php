@@ -29,7 +29,7 @@ class Widget extends Component
                 'visitor' => $visitor,
                 'csrf' => csrf_token(),
                 'name' => $this->name ?? config('rekhu-assistant.name', 'Assistant'),
-                'greeting' => $this->greeting ?? ($visitor ? config('rekhu-assistant.guests.greeting') : null) ?? config('rekhu-assistant.greeting'),
+                'greeting' => $this->greeting ?? RekhuAssistant::greeting($visitor),
                 'color' => $this->color ?? config('rekhu-assistant.color', '#4f46e5'),
             ],
             'script' => route('rekhu.assistant.widget').'?v='.RekhuAssistant::VERSION,
