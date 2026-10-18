@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Gate;
+use Rekhu\Assistant\Http\AssistantRoutes;
 
 /**
  * What the package knows about itself and the app: the key, and who the customer is behind a signed-in user.
@@ -27,7 +28,7 @@ use Illuminate\Support\Facades\Gate;
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.5.2';
+    public const VERSION = '0.6.0';
 
     /** The Rekhu product the keys of this package belong to: agk_<account>_assistant_<secret>. */
     public const PRODUCT = 'assistant';
@@ -40,6 +41,26 @@ class RekhuAssistant
     }
 
     private static ?Closure $tenant = null;
+
+    /** Set by ignoreRoutes(): the package registers no routes of its own. */
+    public static bool $ignoresRoutes = false;
+
+    /** The package registers no routes of its own; call routes() in your route file instead. In a service provider's register(). */
+    public static function ignoreRoutes(): void
+    {
+        self::$ignoresRoutes = true;
+    }
+
+    /**
+     * The assistant's routes, in your own route file and group: your domain, prefix, middleware and names around them.
+     * Options: path (default rekhu-assistant.path), middleware, guests, guest_middleware, widget (the script route).
+     *
+     *     Route::prefix('api/v2')->group(fn () => RekhuAssistant::routes(['path' => 'assistant', 'middleware' => ['api', 'auth:sanctum']]));
+     */
+    public static function routes(array $options = []): void
+    {
+        AssistantRoutes::register($options);
+    }
 
     private static ?Closure $authorize = null;
 

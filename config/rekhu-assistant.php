@@ -19,6 +19,9 @@ return [
     // Blade, Livewire, Inertia: web,auth. An API for a Nuxt, Next or mobile front end: api,auth:sanctum (or your guard),
     // and a path under api/ when your app exempts api/* from CSRF (Sanctum checks CSRF for its stateful domains).
     'path' => env('REKHU_ASSISTANT_PATH', 'rekhu/assistant'),
+
+    // false: the package registers no routes; put RekhuAssistant::routes() in your own route file, inside your own group
+    'routes' => (bool) env('REKHU_ASSISTANT_ROUTES', true),
     'middleware' => explode(',', env('REKHU_ASSISTANT_MIDDLEWARE', 'web,auth')),
 
     // The public chat, for visitors who are not signed in (off unless you turn it on). Visitors only reach actions marked

@@ -28,7 +28,8 @@ class Pages
         $routes = (bool) config('rekhu-assistant.pages.routes', true) ? Router::getRoutes()->getRoutes() : [];
         foreach ($routes as $route) {
             $name = $route->getName();
-            if (! $name || ! in_array('GET', $route->methods(), true) || Str::is($exclude, $name) || str_starts_with($route->uri(), 'api/')) {
+            // the assistant's own routes are never pages, whatever group or name prefix the app put them in
+            if (! $name || ! in_array('GET', $route->methods(), true) || Str::is($exclude, $name) || str_starts_with($route->uri(), 'api/') || str_contains($name, 'rekhu.assistant.')) {
                 continue;
             }
             $page = Routes::attribute($route, Page::class);

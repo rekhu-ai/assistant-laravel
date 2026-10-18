@@ -17,7 +17,10 @@ class AssistantServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        $this->loadRoutesFrom(__DIR__.'/../routes/assistant.php');
+        // the app may register the routes itself, in its own route file (RekhuAssistant::routes())
+        if (! RekhuAssistant::$ignoresRoutes && config('rekhu-assistant.routes', true)) {
+            $this->loadRoutesFrom(__DIR__.'/../routes/assistant.php');
+        }
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'rekhu-assistant');
         $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'rekhu-assistant');
         Blade::component('rekhu-assistant', Widget::class);

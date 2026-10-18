@@ -39,17 +39,20 @@
 
 1. [Requirements](#requirements)
 2. [Getting started](#getting-started)
-3. [Choose your setup](#choose-your-setup): [Blade](#blade) · [Livewire](#livewire) · [Inertia](#inertia-vue-or-react) · [API with Nuxt, Next or a mobile app](#an-api-with-nuxt-next-or-a-mobile-app)
-4. [Actions](#actions)
-5. [Pages](#pages)
-6. [Help](#help)
-7. [A public chat for visitors](#a-public-chat-for-visitors)
-8. [Projects, usage and limits](#projects-usage-and-limits)
-9. [How it works](#how-it-works)
-10. [Security](#security)
-11. [Configuration](#configuration)
-12. [Commands](#commands)
-13. [Troubleshooting](#troubleshooting)
+3. [Complete examples](#complete-examples)
+4. [Choose your setup](#choose-your-setup): [Blade](#blade) · [Livewire](#livewire) · [Inertia](#inertia-vue-or-react) · [API with Nuxt, Next or a mobile app](#an-api-with-nuxt-next-or-a-mobile-app)
+5. [Actions](#actions): [from the config](#actions-from-the-config) · [your own permission rule](#your-own-permission-rule) · [writing good actions](#writing-good-actions)
+6. [Pages](#pages)
+7. [Quick questions](#quick-questions)
+8. [Design your own chat](#design-your-own-chat)
+9. [Help](#help)
+10. [A public chat for visitors](#a-public-chat-for-visitors)
+11. [Projects, usage and limits](#projects-usage-and-limits)
+12. [How it works](#how-it-works)
+13. [Security](#security)
+14. [Configuration](#configuration): [your own routes](#your-own-routes) · [translations](#translations)
+15. [Commands](#commands)
+16. [Troubleshooting](#troubleshooting)
 
 ## Requirements
 
@@ -109,6 +112,10 @@ php artisan rekhu:assistant --user=1
 ```
 
 It shows your credit, lists the actions, pages and help topics that user can reach, and tests the connection to Rekhu. Then sign in, open the chat and ask *"order my last business cards again"*.
+
+## Complete examples
+
+The [`examples`](examples) folder is a small shop wired up file by file: a controller with one action of each kind, a form request, the service provider, a config, your own routes, help topics, a Blade layout and a Nuxt chat of your own. Not part of what Composer installs.
 
 ## Choose your setup
 
@@ -309,11 +316,12 @@ public function cancel(Order $order) { … }           // DELETE: the user confi
 
 | Argument | Required | Meaning |
 |---|---|---|
-| `description` | yes | What the action does, written for the assistant. Users see it on the confirm and result cards. |
+| `description` | yes | What the action does, written for the assistant: what it returns, what its input means, when to use it. Never shown to users. |
 | `name` | no | The tool's name. Defaults to the route name. |
 | `confirm` | no | `true` asks the user to click **Confirm** first. Every `DELETE` route does this by default. |
 | `rules` | no | The input, when the method validates inline instead of through a form request. |
 | `guests` | no | `true` also offers the action in the [public chat](#a-public-chat-for-visitors). |
+| `label` | no | What the user reads while it runs and on its confirm and result cards: short, in their words, a text or one per language. Without it: "Working on it…" in their language. |
 
 **Confirmations.** When an action needs confirming, nothing runs until the user clicks **Confirm** on the card. The action and its exact input are kept on the server; a typed "yes", or anything the model writes, cannot run it.
 
@@ -350,6 +358,41 @@ RekhuAssistant::authorizeUsing(fn ($user, $route) => $user->isAbleTo($route->get
 ```
 
 This only decides what the assistant offers. Every call still runs through the route's own middleware, so a user can never do more through the chat than in the app.
+
+## Writing good actions
+
+How well the assistant works depends mostly on how you describe your actions. The [examples](examples) show every kind; these are the choices behind them.
+
+**The description is for the assistant.** Say what the action does, what comes back, what each input means, and when to use it (or not). It is never shown to users.
+
+| | Description |
+|---|---|
+| ✗ | `'Orders'` |
+| ✗ | `'Calls OrderController@index with pagination'` |
+| ✓ | `'List the user\'s orders, newest first: number, date, status (open, shipped, delivered, cancelled), total in EUR. "status" keeps one status; "search" matches an order number or product name. Use it to find an order before showing or changing it.'` |
+
+**The label is for the user.** A few words in their language, saying what happens now: `['en' => 'Looking up your orders', 'nl' => 'Ik zoek je bestellingen']`. Without one they read "Working on it…".
+
+**The name stays the same.** The assistant and your conversation history know the action by it: short, snake_case, a verb and a thing (`list_orders`, `change_address`). Give one when the route name is long or shared by several routes.
+
+**Read first, then change.** Give the assistant a way to find a record (a list with `search`) before every action that changes one; it then shows the user what it found and asks the right question.
+
+**Changes are confirmed.** Every `DELETE` route asks the user to click **Confirm**; give `confirm: true` to any other action that changes something the user should see first (an address, a payment, a booking). The confirm card shows the exact input, and nothing runs until the click.
+
+**Say when it does not apply.** "of an order that has not shipped yet" keeps the assistant from trying; your form request's `authorize()` and rules still refuse it if it does.
+
+**Return what helps.** JSON with the facts the user asked about (and ids for the next step) when `$request->expectsJson()`; a redirect with a flashed `status` message works too: the assistant reads the message and the page it went to.
+
+**Where the rest goes.**
+
+| What | Where |
+|---|---|
+| How the app works, step by step (returns, delivery, how to invite a colleague) | Help files in `resources/rekhu/help`, one topic each |
+| How the assistant behaves for your users: tone, language, words they use, what it never does, when to hand over to a person | The project's **Knowledge** in your Rekhu account (no deploy needed) |
+| Rules that belong with the code ("never give legal advice") | `instructions` in `config/rekhu-assistant.php` |
+| What users can click in a fresh chat | `quick` in the config |
+
+`php artisan rekhu:assistant --user=ID` shows what one user is offered: actions, pages and help.
 
 ## Pages
 
@@ -506,6 +549,30 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 | `max_message` | The most characters in one message from a signed-in user (4000). |
 | `max_tokens`, `max_steps` | How long one answer may get, and how many action rounds one turn may take. |
 | `guests.*` | The public chat: its greeting, message length, steps and caps. |
+
+### Your own routes
+
+The package registers its routes at `REKHU_ASSISTANT_PATH` (`rekhu/assistant`): `GET widget.js`, and `POST`, `GET` and `DELETE` on `chat` (`rekhu.assistant.chat`, `.history`, `.forget`), plus `visitor/chat` for the public chat. To put them in your own route file, with your own domain, prefix, middleware or name prefix, turn that off and register them yourself, the way you would with `Broadcast::routes()`:
+
+```dotenv
+REKHU_ASSISTANT_ROUTES=false
+```
+
+```php
+// routes/api.php
+use Rekhu\Assistant\RekhuAssistant;
+
+Route::prefix('v2')->name('v2.')->group(function () {
+    RekhuAssistant::routes([
+        'path' => 'assistant',                       // → /api/v2/assistant/chat, named v2.rekhu.assistant.chat
+        'middleware' => ['api', 'auth:sanctum'],
+        'guests' => false,                           // the public chat: also 'guest_middleware'
+        'widget' => false,                           // no widget.js route: the front end has @rekhu/assistant-widget
+    ]);
+});
+```
+
+Point the widget or your own chat at that address (`endpoint`). `RekhuAssistant::ignoreRoutes()` in a service provider's `register()` does the same as `REKHU_ASSISTANT_ROUTES=false`.
 
 ### Translations
 

@@ -2,6 +2,12 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.6.0 · 19 October 2026
+
+- **Your own routes.** `REKHU_ASSISTANT_ROUTES=false` (or `RekhuAssistant::ignoreRoutes()`) stops the package from registering its routes, and `RekhuAssistant::routes([...])` registers them in your own route file, inside your own group: your domain, prefix, middleware and name prefix, with `path`, `middleware`, `guests`, `guest_middleware` and `widget` as options. The assistant's own routes are never offered as pages, whatever their name prefix.
+- The README's table for `#[Tool]` says what users read: `label`, never the description.
+- **Examples and a guide.** `examples/` (on GitHub, not in what Composer installs) is a small shop wired up file by file: one action of each kind, a form request, the service provider, a config, your own routes, help topics, a Blade layout and a Nuxt chat on `createClient()`. The README's new section "Writing good actions" explains descriptions, labels, names, confirmation, and where help, knowledge and instructions go.
+
 ## 0.5.2 · 19 October 2026
 
 - **What the user reads while an action runs.** `label` on `#[Tool]` and in `actions.include` (a text or one per language) is shown on the step line and on the action's cards. Without one the user reads a neutral "Working on it…" in their language; the description, which is written for the assistant, is no longer shown. "Looking in the help…" comes in the user's language too.
