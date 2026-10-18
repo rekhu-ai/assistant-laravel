@@ -6,10 +6,13 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Route as Router;
 use Illuminate\Support\Str;
 use Rekhu\Assistant\Attributes\Page;
+use Rekhu\Assistant\RekhuAssistant;
 
 /**
  * The pages the assistant may open for the user: the app's named GET routes, minus the excluded patterns, the API,
- * pages for guests and pages the user may not open. #[Page] gives one a label and a description.
+ * pages for guests and pages the user may not open. #[Page] gives one a label and a description. An app with a front
+ * end of its own (Nuxt, Next, a mobile app) adds that front end's pages: from the config (pages.frontend.list) and from
+ * RekhuAssistant::pagesUsing(); they open at pages.frontend.url.
  */
 class Pages
 {
@@ -40,6 +43,22 @@ class Pages
             if (count($out) >= (int) config('rekhu-assistant.pages.limit', 300)) {
                 break;
             }
+        }
+        foreach (RekhuAssistant::frontendPages($user) as $page) {
+            $path = '/'.ltrim((string) ($page['path'] ?? ''), '/');
+            if ($path === '/' && empty($page['path']) || count($out) >= (int) config('rekhu-assistant.pages.limit', 300)) {
+                continue;
+            }
+            $name = (string) ($page['name'] ?? '') ?: (trim(Str::of($path)->replaceMatches('/\{[^}]+\}/', '')->replace('/', '.')->replaceMatches('/\.+/', '.')->trim('.')->toString()) ?: 'home');
+            preg_match_all('/\{(\w+)\??\}/', $path, $m);
+            $out[$name] = [
+                'name' => $name,
+                'label' => (string) ($page['label'] ?? '') ?: Str::of($name)->replace(['.', '-', '_'], ' ')->title()->toString(),
+                'help' => (string) ($page['help'] ?? ''),
+                'uri' => $path,
+                'parameters' => $m[1],
+                'frontend' => true,
+            ];
         }
 
         return $out;

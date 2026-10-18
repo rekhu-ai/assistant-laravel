@@ -2,6 +2,12 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.4.0 · 18 October 2026
+
+- **Your own permission rule.** `RekhuAssistant::authorizeUsing(fn ($user, $route) => …)` tells the assistant which actions and pages a user may use, for apps that check rights their own way (Laratrust, Spatie, a permission per route name) instead of `can:` middleware. Each call is still checked by the route's own middleware.
+- **Pages of a front end of its own.** A Nuxt, Next or mobile front end lists its pages under `pages.frontend.list` in the config, or from code with `RekhuAssistant::pagesUsing(fn ($user) => […])`, as the user may open them. They open at `pages.frontend.url` (`REKHU_ASSISTANT_FRONTEND_URL`), with `{placeholders}` filled in.
+- **The chat's address from `.env`** (`REKHU_ASSISTANT_PATH`). An API whose CSRF exemption covers only `api/*` puts the chat under it, for example `api/rekhu/assistant`: Sanctum checks CSRF for requests from its stateful domains.
+
 ## 0.3.2 · 15 October 2026
 
 - The install command and the config point to where keys are made now: the Connection tab of the app's project in the Rekhu account.

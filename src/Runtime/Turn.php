@@ -132,13 +132,26 @@ class Turn
             return ['ok' => false, 'error' => 'no such page for this user; pick one from the list'];
         }
         try {
-            $url = route($page['name'], (array) ($input['parameters'] ?? []));
+            $url = ! empty($page['frontend']) ? $this->frontendUrl($page, (array) ($input['parameters'] ?? [])) : route($page['name'], (array) ($input['parameters'] ?? []));
         } catch (\Throwable $e) {
             return ['ok' => false, 'error' => 'the page needs: '.implode(', ', $page['parameters'])];
         }
         ($this->emit)(['type' => 'card', 'kind' => 'page', 'label' => (string) ($input['label'] ?? $page['label']), 'url' => $url]);
 
         return ['ok' => true, 'result' => ['status' => 'shown', 'note' => 'The user has a button to open it.']];
+    }
+
+    /** A front end's page: its address with the placeholders filled, at the front end's own URL. */
+    private function frontendUrl(array $page, array $parameters): string
+    {
+        $missing = array_diff($page['parameters'], array_keys(array_filter($parameters, fn ($v) => $v !== null && $v !== '')));
+        if ($missing) {
+            throw new \InvalidArgumentException('missing '.implode(', ', $missing));
+        }
+        $path = preg_replace_callback('/\{(\w+)\??\}/', fn ($m) => rawurlencode((string) $parameters[$m[1]]), $page['uri']);
+        $base = rtrim((string) (config('rekhu-assistant.pages.frontend.url') ?: config('app.url')), '/');
+
+        return $base.$path;
     }
 
     private function card(array $action, array $outcome): void

@@ -16,8 +16,9 @@ return [
     'max_steps' => 8,
 
     // Where the chat lives, and who may use it: the app's own middleware, so only signed-in users talk to it.
-    // Blade, Livewire, Inertia: web,auth. An API for a Nuxt, Next or mobile front end: api,auth:sanctum (or your guard).
-    'path' => 'rekhu/assistant',
+    // Blade, Livewire, Inertia: web,auth. An API for a Nuxt, Next or mobile front end: api,auth:sanctum (or your guard),
+    // and a path under api/ when your app exempts api/* from CSRF (Sanctum checks CSRF for its stateful domains).
+    'path' => env('REKHU_ASSISTANT_PATH', 'rekhu/assistant'),
     'middleware' => explode(',', env('REKHU_ASSISTANT_MIDDLEWARE', 'web,auth')),
 
     // The public chat, for visitors who are not signed in (off unless you turn it on). Visitors only reach actions marked
@@ -44,7 +45,14 @@ return [
     'instructions' => '',
 
     // Pages it may open: every named GET route, minus these name patterns, minus routes the user may not open.
+    // A front end of its own (Nuxt, Next, a mobile app): its pages, opened at its own address. Each page is
+    // ['path' => '/orders/{order}', 'label' => 'Order', 'help' => 'What it shows', 'can' => 'a gate, optional'];
+    // RekhuAssistant::pagesUsing() adds pages from code, as the user may open them.
     'pages' => [
+        'frontend' => [
+            'url' => env('REKHU_ASSISTANT_FRONTEND_URL'),
+            'list' => [],
+        ],
         'exclude' => ['rekhu.*', 'login', 'logout', 'register', 'password.*', 'verification.*', 'sanctum.*', 'livewire.*',
             'ignition.*', 'telescope*', 'horizon.*', 'pulse*', 'debugbar.*', 'storage.*', 'up', 'filament.*.auth.*'],
         'limit' => 300,

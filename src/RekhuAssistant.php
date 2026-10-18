@@ -4,6 +4,8 @@ namespace Rekhu\Assistant;
 
 use Closure;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * What the package knows about itself and the app: the key, and who the customer is behind a signed-in user.
@@ -14,12 +16,52 @@ use Illuminate\Contracts\Auth\Authenticatable;
  *     RekhuAssistant::tenantUsing(fn ($user) => ['id' => $user->company_id, 'name' => $user->company->name]);
  *
  * Usage, memory and limits on Rekhu are then kept per customer, so the developer can bill each one.
+ *
+ * An app that checks rights its own way (not with "can:" middleware) says which actions and pages a user may use:
+ *
+ *     RekhuAssistant::authorizeUsing(fn ($user, $route) => $user->isAbleTo($route->getName()));
+ *
+ * A front end of its own (Nuxt, Next, a mobile app) lists its pages, as the user may open them:
+ *
+ *     RekhuAssistant::pagesUsing(fn ($user) => [['path' => '/orders', 'label' => 'Orders'], …]);
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.3.2';
+    public const VERSION = '0.4.0';
 
     private static ?Closure $tenant = null;
+
+    private static ?Closure $authorize = null;
+
+    private static ?Closure $pages = null;
+
+    /** fn ($user, Route $route): bool — false hides the action or page from the user; the call itself is still checked by the route. */
+    public static function authorizeUsing(?Closure $resolver): void
+    {
+        self::$authorize = $resolver;
+    }
+
+    public static function authorizes(Authenticatable $user, Route $route): bool
+    {
+        return ! self::$authorize || (bool) (self::$authorize)($user, $route);
+    }
+
+    /** fn ($user): array — the front end's pages this user may open, each ['path', 'label', 'help'?, 'name'?]. */
+    public static function pagesUsing(?Closure $resolver): void
+    {
+        self::$pages = $resolver;
+    }
+
+    /** @return list<array<string, mixed>> the front end's pages for the user: from the config, then from pagesUsing() */
+    public static function frontendPages(?Authenticatable $user): array
+    {
+        $listed = array_values(array_filter((array) config('rekhu-assistant.pages.frontend.list', []), function ($page) use ($user) {
+            // a page with "can" is offered when the user passes that gate
+            return is_array($page) && (empty($page['can']) || $user && Gate::forUser($user)->allows($page['can']));
+        }));
+
+        return [...$listed, ...array_values((array) (self::$pages ? (self::$pages)($user) : []))];
+    }
 
     public static function tenantUsing(Closure $resolver): void
     {

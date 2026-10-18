@@ -7,6 +7,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Gate;
 use ReflectionMethod;
+use Rekhu\Assistant\RekhuAssistant;
 use Throwable;
 
 /** What a route says about itself: the attribute on its controller method, and whether a user may use it. */
@@ -39,6 +40,7 @@ class Routes
      * False when the route's "can:" middleware refuses the user, or it is for guests only. A "can:" that needs a
      * record (can:update,order) cannot be checked before the record is known, so it is left to the call itself.
      * A visitor (no user) only reaches routes without login: no auth, verified, password confirmation or "can:".
+     * For a user, RekhuAssistant::authorizeUsing() has the last word.
      */
     public static function allows(Route $route, ?Authenticatable $user): bool
     {
@@ -67,7 +69,8 @@ class Routes
             }
         }
 
-        return true;
+        // the app's own rule for what this user may use, when it checks rights without "can:"
+        return ! $user || RekhuAssistant::authorizes($user, $route);
     }
 
     /** GET, POST, PUT, PATCH or DELETE: the route's first method that is not HEAD. */

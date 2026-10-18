@@ -243,6 +243,45 @@ export default defineNuxtPlugin(() => {
 });
 ```
 
+**The chat's address.** When your front end's domain is one of Sanctum's stateful domains, Sanctum checks CSRF on every POST from it. If your app exempts only `api/*` from CSRF, put the chat under it:
+
+```dotenv
+REKHU_ASSISTANT_PATH=api/rekhu/assistant
+```
+
+The endpoint is then `https://api.example.com/api/rekhu/assistant/chat`, and the `api/*` rule in `config/cors.php` already covers it.
+
+**Your front end's pages.** Laravel does not know the pages of a Nuxt or Next front end, so list them, and say where the front end lives:
+
+```dotenv
+REKHU_ASSISTANT_FRONTEND_URL=https://app.example.com
+```
+
+```php
+// config/rekhu-assistant.php
+'pages' => [
+    'frontend' => [
+        'url' => env('REKHU_ASSISTANT_FRONTEND_URL'),
+        'list' => [
+            ['path' => '/orders', 'label' => 'Orders', 'help' => 'All orders with their status'],
+            ['path' => '/orders/{order}', 'label' => 'Order', 'help' => 'One order'],
+            ['path' => '/finance', 'label' => 'Finance', 'can' => 'see-finance'],   // only for users who pass this gate
+        ],
+    ],
+    // …
+],
+```
+
+When your permissions are not gates, give the pages from code, as the user may open them:
+
+```php
+RekhuAssistant::pagesUsing(fn ($user) => collect(config('my-app.pages'))
+    ->filter(fn ($page) => $user->isAbleTo($page['permission']))
+    ->all());
+```
+
+The widget's `navigate` option opens them in your router (add the front end's origin to `navigateOrigins`).
+
 The widget's README shows the same for Next.js and plain HTML. A mobile app, or a chat screen of your own, uses the same endpoint; [protocol 1](PROTOCOL.md) describes every request and event.
 
 ## Actions
@@ -271,6 +310,18 @@ public function cancel(Order $order) { … }           // DELETE: the user confi
 | `guests` | no | `true` also offers the action in the [public chat](#a-public-chat-for-visitors). |
 
 **Confirmations.** When an action needs confirming, nothing runs until the user clicks **Confirm** on the card. The action and its exact input are kept on the server; a typed "yes", or anything the model writes, cannot run it.
+
+### Your own permission rule
+
+The assistant offers a user only the actions and pages they may use. It reads `can:` middleware itself. When your app checks rights another way (Laratrust, Spatie permissions, a permission derived from the route name), tell it, in a service provider:
+
+```php
+use Rekhu\Assistant\RekhuAssistant;
+
+RekhuAssistant::authorizeUsing(fn ($user, $route) => $user->isAbleTo($route->getName()));
+```
+
+This only decides what the assistant offers. Every call still runs through the route's own middleware, so a user can never do more through the chat than in the app.
 
 ## Pages
 
