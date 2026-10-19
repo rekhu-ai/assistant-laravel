@@ -1,6 +1,6 @@
 # Rekhu Assistant protocol, version 1
 
-What the chat widget (`@rekhu/assistant-widget`) and a **Rekhu server package** in the app's back end say to each other. A server package implements it (for Node.js: `@rekhu/assistant-node`), and a team that wants its own chat screen can talk to one directly.
+What a client (the chat widget `@rekhu/assistant-widget`, or `rekhu_assistant` for Flutter) and a **Rekhu server package** in the app's back end say to each other. A server package implements it (for Node.js: `@rekhu/assistant-node`), and a team that wants its own chat screen can talk to one directly.
 
 The server package runs inside the developer's back end. It knows the signed-in user, the actions and pages they may use, and the help. It calls the Rekhu platform for the model. The browser never talks to Rekhu and never holds a Rekhu key.
 

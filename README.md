@@ -126,7 +126,7 @@ The package runs the chat on your server in every setup. What differs is how the
 | [Blade](#blade) | `<x-rekhu-assistant />` | the session |
 | [Livewire](#livewire) | `<x-rekhu-assistant />` | the session |
 | [Inertia, with Vue or React](#inertia-vue-or-react) | the Blade tag, or [`@rekhu/assistant-widget`](https://www.npmjs.com/package/@rekhu/assistant-widget) for router navigation | the session |
-| [An API with Nuxt, Next or a mobile app](#an-api-with-nuxt-next-or-a-mobile-app) | [`@rekhu/assistant-widget`](https://www.npmjs.com/package/@rekhu/assistant-widget) | a token (Sanctum, Passport or your own) |
+| [An API with Nuxt, Next or a mobile app](#an-api-with-nuxt-next-or-a-mobile-app) | [`@rekhu/assistant-widget`](https://www.npmjs.com/package/@rekhu/assistant-widget), or [`rekhu_assistant`](https://pub.dev/packages/rekhu_assistant) in Flutter | a token (Sanctum, Passport or your own) |
 | A chat screen of your own | none; speak [protocol 1](PROTOCOL.md) | any of the above |
 
 ### Blade
@@ -295,7 +295,7 @@ REKHU_ASSISTANT_ROUTE_PAGES=false
 
 The widget's `navigate` option opens them in your router (add the front end's origin to `navigateOrigins`).
 
-The widget's README shows the same for Next.js and plain HTML. A mobile app, or a chat screen of your own, uses the same endpoint; [protocol 1](PROTOCOL.md) describes every request and event.
+The widget's README shows the same for Next.js and plain HTML. A Flutter app uses [`rekhu_assistant`](https://pub.dev/packages/rekhu_assistant) on the same endpoint, with a ready chat screen or one of your own; any other client follows [protocol 1](PROTOCOL.md), which describes every request and event.
 
 ## Actions
 
