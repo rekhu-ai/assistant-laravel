@@ -1,4 +1,4 @@
-/*! @rekhu/assistant-widget 0.2.0 · https://rekhu.com · generated from src/index.js, do not edit */
+/*! @rekhu/assistant-widget 0.2.1 · https://rekhu.com · generated from src/index.js, do not edit */
 (() => {
 /*
  * The Rekhu Assistant widget: a chat button and panel as <rekhu-assistant>, in its own shadow DOM so the app's CSS and
@@ -23,6 +23,7 @@ header button { background: transparent; border: 0; color: #fff; opacity: .85; c
 header button:hover { opacity: 1; background: rgba(255,255,255,.15); }
 .log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: var(--rekhu-log-bg, #f9fafb); }
 .msg { max-width: 88%; padding: 8px 12px; border-radius: 14px; white-space: normal; word-wrap: break-word; }
+.msg .table { overflow-x: auto; margin: 4px 0; } .msg table { border-collapse: collapse; font-size: 12px; width: 100%; } .msg th, .msg td { text-align: start; padding: 4px 8px; border-bottom: 1px solid var(--rekhu-border, #e5e7eb); white-space: nowrap; } .msg th { font-weight: 600; }
 .msg p { margin: 0 0 6px; } .msg p:last-child { margin: 0; } .msg ul, .msg ol { margin: 4px 0; padding-inline-start: 20px; }
 .msg a { color: var(--c); }
 .user { align-self: flex-end; background: var(--c); color: #fff; border-end-end-radius: 4px; }
@@ -55,8 +56,8 @@ const ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 
 const escape = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// a small, safe markdown: everything escaped first, then paragraphs, lists, bold, italics, code and links to http(s) or
-// the app's own paths (never javascript:, data: or //other-host)
+// a small, safe markdown: everything escaped first, then paragraphs, lists, tables, bold, italics, code and links to
+// http(s) or the app's own paths (never javascript:, data: or //other-host)
 const markdown = (text) => {
     const inline = (s) => escape(s)
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -65,7 +66,24 @@ const markdown = (text) => {
         .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/(?!\/))[^\s)]+)\)/g, '<a href="$2" target="_top" rel="noopener">$1</a>');
     const out = [];
     let list = null;
+    let table = null;
+    const row = (line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
+    const closeTable = () => {
+        if (!table) return;
+        const [head, ...body] = table;
+        out.push('<div class="table"><table><thead><tr>' + head.map((c) => `<th>${inline(c)}</th>`).join('') + '</tr></thead><tbody>'
+            + body.map((r) => '<tr>' + head.map((_, i) => `<td>${inline(r[i] || '')}</td>`).join('') + '</tr>').join('') + '</tbody></table></div>');
+        table = null;
+    };
     for (const line of String(text).split('\n')) {
+        // a table: rows between pipes; the |---|---| line under the header only separates
+        if (/^\s*\|.*\|\s*$/.test(line)) {
+            if (list) { out.push(`</${list.kind}>`); list = null; }
+            if (/^\s*\|[\s:|-]+\|\s*$/.test(line) && /-/.test(line)) continue;
+            (table = table || []).push(row(line));
+            continue;
+        }
+        closeTable();
         const item = line.match(/^\s*(?:[-*]|\d+\.)\s+(.*)$/);
         if (item) {
             const kind = /^\s*\d+\./.test(line) ? 'ol' : 'ul';
@@ -77,6 +95,7 @@ const markdown = (text) => {
         if (line.trim()) out.push(`<p>${inline(line)}</p>`);
     }
     if (list) out.push(`</${list.kind}>`);
+    closeTable();
     return out.join('');
 };
 

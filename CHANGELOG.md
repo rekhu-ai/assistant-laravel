@@ -2,6 +2,10 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.6.1 · 21 October 2026
+
+- The chat shows tables: an answer that lists records in a Markdown table now reads as a table, not as lines of `|` characters. Widget 0.2.1.
+
 ## 0.6.0 · 19 October 2026
 
 - **Your own routes.** `REKHU_ASSISTANT_ROUTES=false` (or `RekhuAssistant::ignoreRoutes()`) stops the package from registering its routes, and `RekhuAssistant::routes([...])` registers them in your own route file, inside your own group: your domain, prefix, middleware and name prefix, with `path`, `middleware`, `guests`, `guest_middleware` and `widget` as options. The assistant's own routes are never offered as pages, whatever their name prefix.
