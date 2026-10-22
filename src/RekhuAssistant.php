@@ -28,7 +28,7 @@ use Rekhu\Assistant\Http\AssistantRoutes;
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.6.0';
+    public const VERSION = '0.7.0';
 
     /** The Rekhu product the keys of this package belong to: agk_<account>_assistant_<secret>. */
     public const PRODUCT = 'assistant';

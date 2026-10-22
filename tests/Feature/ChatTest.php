@@ -18,7 +18,8 @@ final class ChatTest extends TestCase
 
         $response = $this->actingAs($this->user())->post('/rekhu/assistant/chat', ['message' => 'Hi'], $this->headers());
 
-        $response->assertOk()->assertHeader('Content-Type', 'text/event-stream; charset=UTF-8');
+        $response->assertOk();
+        $this->assertSame('text/event-stream; charset=utf-8', strtolower((string) $response->headers->get('Content-Type')));
         $events = $this->events($response->streamedContent());
         $this->assertSame(['start', 'text', 'done'], array_column($events, 'type'));
         $this->assertSame(1, $events[0]['protocol']);
@@ -44,17 +45,19 @@ final class ChatTest extends TestCase
 
         $this->actingAs($this->user())->getJson('/rekhu/assistant/chat?conversation=conv-12345678')
             ->assertOk()
-            ->assertExactJson(['conversation' => 'conv-12345678', 'greeting' => 'Hi! Ask me anything about this app, or tell me what you want done.', 'messages' => [
-                ['role' => 'user', 'text' => 'Where is my order?'],
-                ['role' => 'bot', 'text' => 'Your order ships tomorrow.'],
-            ]]);
+            ->assertJsonPath('conversation', 'conv-12345678')
+            ->assertJsonPath('greeting', 'Hi! Ask me anything about this app, or tell me what you want done.')
+            ->assertJsonPath('messages', [
+                ['id' => 'm_1', 'role' => 'user', 'text' => 'Where is my order?'],
+                ['id' => 'm_2', 'role' => 'bot', 'text' => 'Your order ships tomorrow.'],
+            ]);
     }
 
     public function test_a_fresh_chat_gets_the_greeting_in_the_users_language(): void
     {
         config(['rekhu-assistant.greeting' => ['en' => 'Hi!', 'ar' => 'مرحباً!']]);
 
-        $this->actingAs($this->user())->getJson('/rekhu/assistant/chat')->assertExactJson(['messages' => [], 'greeting' => 'Hi!']);
+        $this->actingAs($this->user())->getJson('/rekhu/assistant/chat')->assertJsonPath('messages', [])->assertJsonPath('greeting', 'Hi!');
         app()->setLocale('ar');
         $this->actingAs($this->user())->getJson('/rekhu/assistant/chat')->assertJsonPath('greeting', 'مرحباً!');
     }
@@ -69,12 +72,12 @@ final class ChatTest extends TestCase
     public function test_what_the_app_reports_for_the_user_stays_out_of_the_history(): void
     {
         $conversation = Conversation::open($this->user(), 'conv-12345678');
-        $conversation->messages[] = ['role' => 'user', 'content' => 'Cancel order 12'];
+        $conversation->messages[] = ['role' => 'user', 'content' => 'Cancel order 12', 'id' => $conversation->nextId()];
         $conversation->report('I confirmed "Cancel an order". It ran.');
         $conversation->save();
 
         $this->actingAs($this->user())->getJson('/rekhu/assistant/chat?conversation=conv-12345678')
-            ->assertJsonPath('messages', [['role' => 'user', 'text' => 'Cancel order 12']]);
+            ->assertJsonPath('messages', [['id' => 'm_1', 'role' => 'user', 'text' => 'Cancel order 12']]);
     }
 
     public function test_a_conversation_belongs_to_its_user(): void

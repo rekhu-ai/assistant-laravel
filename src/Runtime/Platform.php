@@ -25,20 +25,10 @@ class Platform
         if (! $key) {
             throw new RuntimeException('REKHU_ASSISTANT_KEY is missing or not a Rekhu app key. Run php artisan rekhu:assistant-install.');
         }
-        $tenant = $this->visitor !== null ? RekhuAssistant::visitors() : RekhuAssistant::tenant($this->user);
         $response = Http::baseUrl(rtrim((string) config('rekhu-assistant.platform'), '/'))
             ->timeout(180)
             ->withOptions(['stream' => true])
-            ->withHeaders([
-                'x-api-key' => $key['key'],
-                'x-agent' => $key['agent'],
-                'x-tenant' => $tenant['id'],
-                'x-tenant-name' => $tenant['name'],
-                'x-user' => $this->visitor !== null ? 'visitor-'.substr(sha1($this->visitor), 0, 16) : RekhuAssistant::userRef($this->user),
-                'x-session' => 'assistant-'.$this->conversation,
-                'anthropic-version' => '2023-06-01',
-                'user-agent' => 'rekhu-assistant-laravel/'.RekhuAssistant::VERSION,
-            ])
+            ->withHeaders(['x-api-key' => $key['key'], 'x-agent' => $key['agent']] + $this->who() + ['anthropic-version' => '2023-06-01'])
             ->post('/v1/messages', $body + ['stream' => true]);
 
         if (! $response->successful()) {
@@ -47,6 +37,47 @@ class Platform
         }
 
         return $this->read($response->toPsrResponse()->getBody(), $onText);
+    }
+
+    /**
+     * Sends a report on an answer to the Reports on the project's Assistant tab in the Rekhu account (/v1/reports), as the same customer,
+     * user and conversation as the model calls, so it is shown with the conversation. Throws when Rekhu cannot be reached
+     * or refuses it.
+     */
+    public function report(array $report): void
+    {
+        self::sendReport($this->who(), $report);
+    }
+
+    /** Who is asking, for every call to Rekhu: the customer, the user and the conversation (no key). */
+    public function who(): array
+    {
+        $tenant = $this->visitor !== null ? RekhuAssistant::visitors() : RekhuAssistant::tenant($this->user);
+
+        return [
+            'x-tenant' => (string) $tenant['id'],
+            'x-tenant-name' => (string) $tenant['name'],
+            'x-user' => $this->visitor !== null ? 'visitor-'.substr(sha1($this->visitor), 0, 16) : RekhuAssistant::userRef($this->user),
+            'x-session' => 'assistant-'.$this->conversation,
+            'user-agent' => 'rekhu-assistant-laravel/'.RekhuAssistant::VERSION,
+        ];
+    }
+
+    /** One report with the given customer, user and conversation; the key is read now, never kept with a queued retry. */
+    public static function sendReport(array $who, array $report): void
+    {
+        $key = RekhuAssistant::key();
+        if (! $key) {
+            throw new RuntimeException('REKHU_ASSISTANT_KEY is missing or not a Rekhu app key. Run php artisan rekhu:assistant-install.');
+        }
+        $response = Http::baseUrl(rtrim((string) config('rekhu-assistant.platform'), '/'))
+            ->timeout(5)
+            ->acceptJson()
+            ->withHeaders(['x-api-key' => $key['key'], 'x-agent' => $key['agent']] + $who)
+            ->post('/v1/reports', $report);
+        if (! $response->successful()) {
+            throw new Refused('Rekhu answered '.$response->status().' to a report: '.($response->json('error.message') ?? 'no reason given'), $response->status(), (string) ($response->json('error.type') ?? ''));
+        }
     }
 
     /** Folds the server-sent events of a streamed message into the message itself. */

@@ -7,9 +7,11 @@ use Rekhu\Assistant\Http\Controllers\ChatController;
 use Rekhu\Assistant\Http\Middleware\EnsureProtocol;
 use Rekhu\Assistant\Http\Middleware\IdentifyVisitor;
 use Rekhu\Assistant\Http\Middleware\LimitVisitors;
+use Rekhu\Assistant\Runtime\Reports;
 
 /**
- * The assistant's routes: the widget's script, the chat for signed-in users and, when turned on, the public chat. The
+ * The assistant's routes: the widget's script, the chat for signed-in users (with "report a problem" on an answer)
+ * and, when turned on, the public chat. The
  * package registers them itself at rekhu-assistant.path; an app that wants them in its own route file (its own domain,
  * prefix, group or names) turns that off and calls RekhuAssistant::routes() there, inside its own group.
  */
@@ -37,6 +39,9 @@ class AssistantRoutes
                 Route::post('/', [ChatController::class, 'send'])->middleware('throttle:30,1')->name('chat');
                 Route::get('/', [ChatController::class, 'history'])->name('history');
                 Route::delete('/', [ChatController::class, 'forget'])->name('forget');
+                if (Reports::enabled()) {
+                    Route::post('report', [ChatController::class, 'report'])->name('report');
+                }
             });
 
         // the public chat, for visitors who are not signed in: only when the app turns it on. The web middleware keeps
@@ -49,6 +54,9 @@ class AssistantRoutes
                     Route::post('/', [ChatController::class, 'send'])->middleware(['throttle:20,1', LimitVisitors::class])->name('');
                     Route::get('/', [ChatController::class, 'history'])->middleware('throttle:60,1')->name('.history');
                     Route::delete('/', [ChatController::class, 'forget'])->middleware('throttle:20,1')->name('.forget');
+                    if (Reports::enabled(true)) {
+                        Route::post('report', [ChatController::class, 'report'])->middleware('throttle:20,1')->name('.report');
+                    }
                 });
         }
     }

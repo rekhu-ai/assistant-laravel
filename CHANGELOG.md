@@ -2,6 +2,15 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.7.0 · 22 October 2026
+
+- **Report a problem.** Under each answer the user can report what went wrong (the answer is wrong, it did not understand, the information is wrong, something else, or reasons of your own) and say what they expected. The report goes to the Reports section of the project's Assistant tab in the Rekhu account, linked to the conversation; no tables, routes or controllers of your own. It is built on the server from the conversation the package kept: the question, the answer, the conversation up to it and the actions the answer used with their input and outcome. What the actions returned is left out unless `reports.include_results` is on. Configure it under `reports` (reasons, comment length, an hourly limit per user, visitors). `Rekhu\Assistant\Events\AnswerReported` is dispatched for every report, for a copy of your own. When Rekhu cannot be reached the user is still thanked and the report is tried once more, on the queue when the app has one. `php artisan rekhu:assistant` says whether reports are on and whether Rekhu takes them.
+- **Message ids.** Every message in the history has an `id` (`"m_7"`), the same for the life of the conversation, also after the oldest turns are dropped; an answer in several parts around actions is one message. The stream's `done` event names the answer just given. Conversations stored by an earlier version get their ids when they are opened. `POST <endpoint>/report` and the history's `report` are in PROTOCOL.md.
+- **Laravel 10 and later.** The package now supports Laravel 10.48 and later: 10, 11, 12 and 13. It requires `guzzlehttp/guzzle`, which Laravel 10 does not install by itself. Laravel 10 and 11 are past their security support, so Composer flags them; upgrading the app is the real fix.
+- Conversations are kept in the cache as JSON. With a cache store that unserializes no classes (`cache.serializable_classes => false`, the default in new Laravel apps) an action without input came back as an unreadable object and was sent to the model that way; it is now always `{}`. Conversations kept by an earlier version are read as before.
+- Tested on PHP 8.5.
+- Widget 0.3.0: the report link, form and thank-you (parts `report`, `report-link`, `report-form`, `report-reason`, `report-comment`, `report-send`, `report-cancel`, `report-thanks`; option `report: false`), `client.report()`, and the answer's id on `done`.
+
 ## 0.6.1 · 21 October 2026
 
 - The chat shows tables: an answer that lists records in a Markdown table now reads as a table, not as lines of `|` characters. Widget 0.2.1.

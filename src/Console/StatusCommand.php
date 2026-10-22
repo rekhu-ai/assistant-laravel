@@ -9,6 +9,7 @@ use Rekhu\Assistant\Catalogue\Actions;
 use Rekhu\Assistant\Catalogue\Pages;
 use Rekhu\Assistant\RekhuAssistant;
 use Rekhu\Assistant\Runtime\Help;
+use Rekhu\Assistant\Runtime\Reports;
 
 /** What the assistant sees in this app, and whether Rekhu answers. Pages are those a user without roles may open. */
 class StatusCommand extends Command
@@ -48,6 +49,8 @@ class StatusCommand extends Command
             }
         }
 
+        $this->reports($key);
+
         $actions = Actions::for($user, ! $user);
         $this->newLine();
         $this->line('<options=bold>Actions</> ('.count($actions).')'.($user ? '' : ' — all of them; give --user to see one user\'s'));
@@ -67,5 +70,30 @@ class StatusCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /** Whether users can report answers, and whether Rekhu takes reports (a check that stores nothing). */
+    private function reports(?array $key): void
+    {
+        $this->newLine();
+        if (! Reports::enabled()) {
+            $this->line('<options=bold>Reports</> off (rekhu-assistant.reports.enabled)');
+
+            return;
+        }
+        $this->line('<options=bold>Reports</> on: '.implode(', ', Reports::keys()).(Reports::enabled(true) && config('rekhu-assistant.guests.enabled') ? '; visitors too' : ''));
+        if (! $key) {
+            return;
+        }
+        $response = Http::baseUrl(rtrim((string) config('rekhu-assistant.platform'), '/'))->timeout(15)->acceptJson()
+            ->withHeaders(['x-api-key' => $key['key'], 'x-agent' => $key['agent']])->post('/v1/reports', ['check' => true]);
+        // the check is answered without storing anything
+        if ($response->successful()) {
+            $this->info('  Rekhu takes reports: they show under Reports on the project\'s Assistant tab.');
+        } elseif ($response->status() === 404) {
+            $this->warn('  The platform does not accept reports yet; users are still thanked and the reports are logged as failed.');
+        } else {
+            $this->error('  Rekhu refused the report check ('.$response->status().'): '.($response->json('error.message') ?? ''));
+        }
     }
 }

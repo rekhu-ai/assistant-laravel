@@ -33,13 +33,15 @@ class Turn
         $this->help = Help::topics();
     }
 
-    public function turn(string $text, ?string $confirm = null, ?string $browser = null): void
+    /** Returns the id of the answer when it has words the user sees, else null. */
+    public function turn(string $text, ?string $confirm = null, ?string $browser = null): ?string
     {
         if ($confirm !== null) {
             $this->confirmed($confirm);
         } else {
-            $this->conversation->messages[] = ['role' => 'user', 'content' => Str::limit(trim($text), ChatRequest::maxMessage($this->visitor !== null), '')];
+            $this->conversation->messages[] = ['role' => 'user', 'content' => Str::limit(trim($text), ChatRequest::maxMessage($this->visitor !== null), ''), 'id' => $this->conversation->nextId()];
         }
+        $answer = $this->conversation->nextId();
         $user = $this->visitor === null ? $this->request->user() : null;
         $platform = new Platform($user, $this->conversation->id, $this->visitor);
         $system = Prompt::system($user, $this->pages, $this->help, $browser, $this->visitor !== null);
@@ -52,9 +54,9 @@ class Turn
                 'max_tokens' => (int) config('rekhu-assistant.max_tokens', 4000),
                 'system' => $system,
                 'tools' => $tools,
-                'messages' => self::cached($this->conversation->messages),
+                'messages' => self::cached($this->conversation->forModel()),
             ], fn ($delta) => ($this->emit)(['type' => 'text', 'text' => $delta]));
-            $this->conversation->messages[] = ['role' => 'assistant', 'content' => $message['content']];
+            $this->conversation->messages[] = ['role' => 'assistant', 'content' => $message['content'], 'id' => $answer];
             if ($message['stop_reason'] !== 'tool_use') {
                 break;
             }
@@ -73,6 +75,8 @@ class Turn
             $this->conversation->messages[] = ['role' => 'user', 'content' => $results];
         }
         $this->conversation->save();
+
+        return $this->conversation->answered($answer) ? $answer : null;
     }
 
     /** The user clicked confirm: the action runs now with exactly the input they saw, and the model is told the outcome. */

@@ -28,6 +28,7 @@ final class OwnRoutesTest extends TestCase
         $this->assertFalse(Route::has('rekhu.assistant.chat'), 'the package did not register its own');
         $this->assertTrue(Route::has('v2.rekhu.assistant.chat'));
         $this->assertSame('/api/v2/assistant/chat', route('v2.rekhu.assistant.chat', [], false));
+        $this->assertSame('/api/v2/assistant/chat/report', route('v2.rekhu.assistant.report', [], false));
         $this->assertFalse(Route::has('v2.rekhu.assistant.visitor'));
         $this->assertSame([], array_filter(array_keys(Pages::for($this->user())), fn ($n) => str_contains($n, 'rekhu')));
 

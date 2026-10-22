@@ -1,4 +1,4 @@
-/*! @rekhu/assistant-widget 0.2.1 · https://rekhu.com · generated from src/index.js, do not edit */
+/*! @rekhu/assistant-widget 0.3.0 · https://rekhu.com · generated from src/index.js, do not edit */
 (() => {
 /*
  * The Rekhu Assistant widget: a chat button and panel as <rekhu-assistant>, in its own shadow DOM so the app's CSS and
@@ -49,6 +49,19 @@ textarea:focus { border-color: var(--c); }
 .quick { display: flex; flex-wrap: wrap; gap: 6px; }
 .quick button { border: 1px solid var(--rekhu-border, #e5e7eb); border-radius: 999px; background: var(--rekhu-surface, #fff); padding: 4px 10px; font: inherit; font-size: 12px; color: inherit; cursor: pointer; }
 .quick button:hover { border-color: var(--c); }
+.report { align-self: flex-start; max-width: 88%; margin-top: -6px; font-size: 12px; color: #6b7280; }
+.report-link { background: none; border: 0; padding: 2px 0; font: inherit; color: inherit; cursor: pointer; }
+.report-link:hover, .report-link:focus-visible { color: var(--rekhu-text, #111827); text-decoration: underline; }
+.report-form { margin: 4px 0 0; padding: 10px 12px; border: 1px solid var(--rekhu-border, #e5e7eb); border-radius: 12px; background: var(--rekhu-surface, #fff); display: flex; flex-direction: column; gap: 8px; color: var(--rekhu-text, #111827); }
+.report-form fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.report-form legend { font-weight: 600; margin-bottom: 4px; padding: 0; }
+.report-reason { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.report-reason input { accent-color: var(--c); margin: 0; }
+.report-comment { display: flex; flex-direction: column; gap: 2px; }
+.report-comment textarea { width: 100%; min-height: 56px; max-height: 120px; resize: vertical; font-size: 13px; }
+.report-count { align-self: flex-end; font-size: 11px; color: #9ca3af; }
+.report-error { color: #991b1b; }
+.report-thanks { color: #047857; }
 `;
 
 
@@ -110,6 +123,8 @@ const TEXTS = {
         name: 'Assistant', new: 'New', newTitle: 'Start a new conversation', close: 'Close', message: 'Message',
         placeholder: 'Type a message…', send: 'Send', open: 'Open', confirm: 'Confirm', cancel: 'Cancel',
         confirmed: 'Confirmed', cancelled: 'Cancel that',
+        report: 'Report a problem', reportTitle: 'What went wrong?', reportPlaceholder: 'What did you expect instead? (optional)',
+        reportSend: 'Send report', reportThanks: 'Thanks, we will look into it.', reportFailed: 'Could not send the report.',
     },
     ar: {
         signedOut: 'انتهت جلستك. أعد تحميل الصفحة وسجّل الدخول من جديد.',
@@ -119,6 +134,8 @@ const TEXTS = {
         name: 'المساعد', new: 'جديد', newTitle: 'ابدأ محادثة جديدة', close: 'إغلاق', message: 'الرسالة',
         placeholder: 'اكتب رسالتك…', send: 'إرسال', open: 'فتح', confirm: 'تأكيد', cancel: 'إلغاء',
         confirmed: 'تم التأكيد', cancelled: 'ألغِ ذلك',
+        report: 'الإبلاغ عن مشكلة', reportTitle: 'ما الخطأ؟', reportPlaceholder: 'ماذا كنت تتوقع بدلاً من ذلك؟ (اختياري)',
+        reportSend: 'إرسال البلاغ', reportThanks: 'شكراً، سنراجع ذلك.', reportFailed: 'تعذّر إرسال البلاغ.',
     },
     nl: {
         signedOut: 'Je sessie is verlopen. Laad de pagina opnieuw en log weer in.',
@@ -128,6 +145,8 @@ const TEXTS = {
         name: 'Assistent', new: 'Nieuw', newTitle: 'Begin een nieuw gesprek', close: 'Sluiten', message: 'Bericht',
         placeholder: 'Typ een bericht…', send: 'Verstuur', open: 'Openen', confirm: 'Bevestigen', cancel: 'Annuleren',
         confirmed: 'Bevestigd', cancelled: 'Annuleer dat',
+        report: 'Meld een probleem', reportTitle: 'Wat ging er mis?', reportPlaceholder: 'Wat had je verwacht? (optioneel)',
+        reportSend: 'Verstuur melding', reportThanks: 'Bedankt, we kijken ernaar.', reportFailed: 'De melding kon niet worden verstuurd.',
     },
 };
 
@@ -142,8 +161,9 @@ const language = (locale) => {
  * protocol 1 with your back end's chat route: the same headers, sign-in and conversation as the widget.
  *
  *     const chat = createClient({ endpoint: '/rekhu/assistant/chat', headers: () => ({ Authorization: `Bearer ${token}` }) });
- *     const { greeting, quick, messages } = await chat.history();
+ *     const { greeting, quick, messages, report } = await chat.history();
  *     await chat.send('Where is my order?', (event) => { … });   // start, text, step, card, error, done (PROTOCOL.md)
+ *     await chat.report({ message: 'm_2', reason: 'wrong_answer', comment: 'I expected …' });   // { message: thank-you }
  */
 function createClient(options = {}) {
     const opts = () => ({ credentials: 'same-origin', storage: 'session', ...(typeof options === 'function' ? options() : options) });
@@ -168,13 +188,18 @@ function createClient(options = {}) {
             ...(o.csrf ? { 'X-CSRF-TOKEN': o.csrf } : {}), ...(o.visitor ? { 'X-Rekhu-Visitor': visitorId() } : {}), ...extra,
         };
     };
-    const request = async (method, body, accept = 'application/json', query = '') => fetch(opts().endpoint + query, { method, headers: await headers(accept), credentials: opts().credentials, body: body ? JSON.stringify(body) : undefined });
+    // the endpoint with a path added before its query string: /chat?x=1 → /chat/report?x=1
+    const at = (path) => { const [base, query] = String(opts().endpoint).split('?'); return `${base.replace(/\/$/, '')}/${path}${query ? `?${query}` : ''}`; };
+    const request = async (method, body, accept = 'application/json', query = '', url = null) => fetch(url || opts().endpoint + query, { method, headers: await headers(accept), credentials: opts().credentials, body: body ? JSON.stringify(body) : undefined });
     const words = () => ({ ...TEXTS[language(opts().locale)], ...(opts().texts || {}) });
     const client = {
         /** The conversation id, kept per tab (or as "storage" says); null for a fresh chat. */
         get conversation() { try { return area()?.getItem(keyOf('conversation')) || null; } catch { return null; } },
         set conversation(id) { try { const a = area(); if (a) id ? a.setItem(keyOf('conversation'), id) : a.removeItem(keyOf('conversation')); } catch { /* private mode */ } },
-        /** { conversation, messages: [{ role, text }], greeting?, quick? } — what the user saw, and for a fresh chat the greeting and quick questions. */
+        /**
+         * { conversation, messages: [{ id, role, text }], greeting?, quick?, report? } — what the user saw, and for a fresh
+         * chat the greeting and quick questions. report: { reasons: [{ key, label }], max_comment } when answers can be reported.
+         */
         async history() {
             const id = client.conversation;
             const response = await request('GET', null, 'application/json', id ? `${opts().endpoint.includes('?') ? '&' : '?'}conversation=${encodeURIComponent(id)}` : '');
@@ -211,6 +236,21 @@ function createClient(options = {}) {
                     onEvent(event);
                 }
             }
+        },
+        /**
+         * Reports a problem with one answer: its id (from history() or the stream's done event), one of the reasons from
+         * history().report, and what the user expected (optional). "conversation" defaults to the one the client keeps.
+         * Resolves to { message } (the thank-you, in the user's language); rejects with what to tell the user.
+         */
+        async report({ message, reason, comment = null, conversation = client.conversation } = {}) {
+            const t = words();
+            const o = opts();
+            const locale = o.locale === undefined ? (navigator.language || null) : o.locale;
+            const response = await request('POST', { conversation, message, reason, comment: comment || null, locale }, 'application/json', '', at('report'));
+            const body = await response.json().catch(() => ({}));
+            if (response.status === 401 || response.status === 419) throw Object.assign(new Error(t.signedOut), { status: response.status });
+            if (!response.ok) throw Object.assign(new Error(body.message || t.reportFailed), { status: response.status, errors: body.errors });
+            return { message: body.message || t.reportThanks };
         },
         /** Runs the action behind a confirm card. */
         confirm(id, onEvent) { return client.send({ confirm: id }, onEvent); },
@@ -326,11 +366,16 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
     // after a reload, the conversation goes on where it was
     async restore() {
         try {
-            const data = await this.client.history();
+            const history = this.client.history();
+            this.offered = history.then((d) => d.report || null, () => null);
+            const data = await history;
             if (!this.settings.greeting && data.greeting) this.serverGreeting = data.greeting;
             if (Array.isArray(data.quick) && !(data.messages || []).length) this.quick = data.quick;
             if (!(data.messages || []).length) this.greet();
-            for (const line of data.messages || []) this.add(line.role, markdown(line.text));
+            for (const line of data.messages || []) {
+                this.add(line.role, markdown(line.text));
+                if (line.role === 'bot' && line.id) await this.reportLink(line.id);
+            }
         } catch { /* the greeting stays */ }
     }
 
@@ -390,6 +435,7 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         let bubble = null;
         let text = '';
         let step = null;
+        let answer = null;
         const endStep = () => { if (step) { step.classList.add('over'); step = null; } };
         try {
             await this.client.send(payload, (event) => {
@@ -403,7 +449,9 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
                 if (event.type === 'step') { endStep(); bubble = null; step = this.add('step', escape(event.label)); }
                 if (event.type === 'card') { endStep(); bubble = null; this.card(event); }
                 if (event.type === 'error') { endStep(); this.add('error', escape(event.message)); this.emit('error', event); }
+                if (event.type === 'done' && event.message) answer = event.message;
             });
+            if (answer) await this.reportLink(answer);
         } catch (error) {
             if (error.status === 401 || error.status === 419) this.emit('unauthorized', { status: error.status });
             this.add('error', escape(error.message || this.t.failed));
@@ -412,6 +460,62 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
             this.busy = false;
             this.sendButton.disabled = false;
         }
+    }
+
+    /** What the server lets users report: its reasons and the comment limit; null when reports are off. */
+    offer() {
+        if (this.settings.report === false) return Promise.resolve(null);
+        this.offered ??= this.client.history().then((d) => d.report || null, () => null);
+        return this.offered;
+    }
+
+    /** "Report a problem" under the answer just added; it opens a small form in place. */
+    async reportLink(id) {
+        const offer = await this.offer();
+        if (!offer?.reasons?.length) return;
+        const t = this.t;
+        const box = this.add('report', '');
+        const link = () => {
+            box.innerHTML = `<button type="button" class="report-link" part="report-link">⚑ ${escape(t.report)}</button>`;
+            box.querySelector('button').addEventListener('click', () => form());
+        };
+        const form = () => {
+            const max = Number(offer.max_comment) || 1000;
+            const name = `reason-${id}-${Math.random().toString(36).slice(2, 8)}`;
+            const reasons = offer.reasons.map((r, i) => `<label class="report-reason" part="report-reason"><input type="radio" name="${name}" value="${escape(r.key)}"${i === 0 ? ' checked' : ''}> ${escape(r.label)}</label>`).join('');
+            box.innerHTML = `<form class="report-form" part="report-form" novalidate>
+<fieldset><legend>${escape(t.reportTitle)}</legend>${reasons}</fieldset>
+<label class="report-comment" part="report-comment"><textarea maxlength="${max}" rows="2" placeholder="${escape(t.reportPlaceholder)}" aria-label="${escape(t.reportPlaceholder)}"></textarea><span class="report-count" dir="ltr" aria-live="polite">0 / ${max}</span></label>
+<div class="report-error" role="alert" hidden></div>
+<div class="row"><button type="submit" class="btn" part="report-send">${escape(t.reportSend)}</button><button type="button" class="btn light" part="report-cancel">${escape(t.cancel)}</button></div>
+</form>`;
+            const el = box.querySelector('form');
+            const comment = el.querySelector('textarea');
+            const count = el.querySelector('.report-count');
+            const error = el.querySelector('.report-error');
+            const buttons = el.querySelectorAll('button');
+            comment.addEventListener('input', () => { count.textContent = `${comment.value.length} / ${max}`; });
+            el.querySelector('[part=report-cancel]').addEventListener('click', () => { link(); box.querySelector('button').focus(); });
+            el.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); link(); box.querySelector('button').focus(); } });
+            el.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const reason = el.querySelector('input[type=radio]:checked')?.value;
+                buttons.forEach((b) => { b.disabled = true; });
+                error.hidden = true;
+                try {
+                    const { message } = await this.client.report({ message: id, reason, comment: comment.value.trim() || null });
+                    box.innerHTML = `<span class="report-thanks" part="report-thanks" role="status">✓ ${escape(message)}</span>`;
+                    this.emit('report', { message: id, reason });
+                } catch (failure) {
+                    error.textContent = failure.message || t.reportFailed;
+                    error.hidden = false;
+                    buttons.forEach((b) => { b.disabled = false; });
+                }
+            });
+            el.querySelector('input[type=radio]:checked')?.focus();
+            this.log.scrollTop = this.log.scrollHeight;
+        };
+        link();
     }
 
     /** The arrow on a link button points the way the text reads. */

@@ -77,9 +77,9 @@ The `data` line is JSON and always repeats the event's `type`. The events, in th
 | `step` | `label` | the assistant is doing something ("Looking in the help", an action's name); ends when any next event comes |
 | `card` | `kind`, … | something to show or click; see below |
 | `error` | `message` | the turn could not finish; show `message` to the user as it is |
-| `done` | | always last when the turn finished |
+| `done` | `message?` | always last when the turn finished; `message` is the id of the answer just given (`"m_7"`), when it has words the user sees |
 
-A `text` after a `step` or a `card` starts a new answer bubble.
+A `text` after a `step` or a `card` starts a new answer bubble. All the bubbles of one turn are still one answer with one id: the history returns them as one message, and a report names that id.
 
 ### Cards
 
@@ -109,13 +109,19 @@ A `text` after a `step` or a `card` starts a new answer bubble.
 {
   "conversation": "8f3a…",
   "messages": [
-    { "role": "user", "text": "What did I order last?" },
-    { "role": "bot", "text": "Your last order was **ORD-1001** …" }
-  ]
+    { "id": "m_1", "role": "user", "text": "What did I order last?" },
+    { "id": "m_2", "role": "bot", "text": "Your last order was **ORD-1001** …" }
+  ],
+  "report": {
+    "reasons": [{ "key": "wrong_answer", "label": "The answer is wrong" }, { "key": "other", "label": "Something else" }],
+    "max_comment": 1000
+  }
 }
 ```
 
-Only what the user saw: their messages and the answers (markdown), at most the last 30, without the tool traffic and without cards.
+Only what the user saw: their messages and the answers (markdown), at most the last 30, without the tool traffic and without cards. Each message has an `id`, the same for the life of the conversation, also after its oldest turns are dropped; an answer that came in several bubbles is one message.
+
+`report` is there when the user may report answers (see below): the reasons to offer, in the user's language, and the longest comment. A client builds its form from it and never hard-codes the reasons.
 
 Without `conversation`, the answer has no messages. Either way it may carry `"greeting"`: the server's first message (markdown) in the user's language (`Accept-Language`), which a client shows when the app gave it none of its own. A client asks for it once, when the chat opens.
 
@@ -130,6 +136,39 @@ Without `conversation`, it may also carry `"quick"`: the developer's quick quest
 ```
 
 When a request fails before the stream starts (4xx or 5xx), a JSON body may carry `"message"`: what to tell the user, in their language. A client shows it instead of its own words.
+
+## POST …/report: report a problem with an answer
+
+`POST <endpoint>/report` (the endpoint's path with `/report` added, before any query string), `Content-Type: application/json`, with the same headers and sign-in as the chat:
+
+```json
+{
+  "conversation": "8f3a…",
+  "message": "m_2",
+  "reason": "wrong_answer",
+  "comment": "My last order was ORD-1002",
+  "locale": "en-GB"
+}
+```
+
+| Field | |
+|---|---|
+| `conversation` | the user's own conversation |
+| `message` | the id of the answer, from the history or the `done` event |
+| `reason` | a `key` from the history's `report.reasons` |
+| `comment` | optional: what the user expected instead, at most `report.max_comment` characters |
+| `locale` | optional: the language the user reads |
+
+The client sends only the id, never the answer's text: the server package reads the question, the answer and what led to it from the conversation it kept itself.
+
+| Answer | |
+|---|---|
+| `201` | `{"message": "Thanks, we will look into it."}`: the thank-you to show, in the user's language |
+| `404` | the conversation or the answer is not this user's |
+| `422` | a reason that is not offered, or a comment that is too long; `errors` per field |
+| `429` | too many reports; `message` says so |
+
+A second report on the same answer by the same user replaces the first. The user is thanked even when the report could not be passed on at once; the server package tries again.
 
 ## DELETE: start over
 

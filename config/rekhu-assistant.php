@@ -90,4 +90,25 @@ return [
 
     // How long a conversation is kept for its user, in minutes.
     'conversation_minutes' => 1440,
+
+    // "Report a problem" under each answer: the user picks what went wrong and may say what they expected. The report
+    // goes to Reports on the project's Assistant tab in your Rekhu account, with the question, the answer, the
+    // conversation up to it and the actions it used (their input and whether they worked). Listen to
+    // Rekhu\Assistant\Events\AnswerReported for a copy of your own.
+    'reports' => [
+        'enabled' => (bool) env('REKHU_ASSISTANT_REPORTS', true),
+        // key => label: null is the built-in text; a text, or one per language: ['en' => …, 'ar' => …]
+        'reasons' => [
+            'wrong_answer' => null,
+            'misunderstood' => null,
+            'wrong_information' => null,
+            'other' => null,
+            // 'wrong_numbers' => ['en' => 'The numbers are wrong', 'ar' => 'الأرقام غير صحيحة'],
+        ],
+        'max_comment' => 1000,              // characters
+        'per_user_per_hour' => 20,          // reports from one user or visitor
+        'guests' => true,                   // visitors of the public chat may report too
+        // what the actions returned is left out: it can hold your customers' personal data. true sends it, cut short.
+        'include_results' => false,
+    ],
 ];

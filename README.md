@@ -9,7 +9,7 @@
   <a href="https://packagist.org/packages/rekhu/assistant-laravel"><img alt="Latest version" src="https://img.shields.io/packagist/v/rekhu/assistant-laravel?label=version&color=6A1FD0"></a>
   <a href="https://packagist.org/packages/rekhu/assistant-laravel"><img alt="Total downloads" src="https://img.shields.io/packagist/dt/rekhu/assistant-laravel?color=6A1FD0"></a>
   <img alt="PHP 8.2 or newer" src="https://img.shields.io/badge/PHP-8.2%2B-777BB4">
-  <img alt="Laravel 12 and 13" src="https://img.shields.io/badge/Laravel-12%20%7C%2013-FF2D20">
+  <img alt="Laravel 10 to 13" src="https://img.shields.io/badge/Laravel-10%20%7C%2011%20%7C%2012%20%7C%2013-FF2D20">
 </p>
 
 <p align="center">
@@ -47,21 +47,26 @@
 8. [Design your own chat](#design-your-own-chat)
 9. [Help](#help)
 10. [A public chat for visitors](#a-public-chat-for-visitors)
-11. [Projects, usage and limits](#projects-usage-and-limits)
-12. [How it works](#how-it-works)
-13. [Security](#security)
-14. [Configuration](#configuration): [your own routes](#your-own-routes) · [translations](#translations)
-15. [Commands](#commands)
-16. [Troubleshooting](#troubleshooting)
+11. [Reports](#reports)
+12. [Projects, usage and limits](#projects-usage-and-limits)
+13. [How it works](#how-it-works)
+14. [Security](#security)
+15. [Configuration](#configuration): [your own routes](#your-own-routes) · [translations](#translations)
+16. [Commands](#commands)
+17. [Troubleshooting](#troubleshooting)
 
 ## Requirements
 
 | Requirement | Version |
 |---|---|
-| PHP | 8.2 or newer |
-| Laravel | 12 or 13 |
+| PHP | 8.2 or newer (tested up to 8.5) |
+| Laravel | 10.48 or newer: 10, 11, 12 or 13 |
 | Cache | any store your app already uses; conversations are kept there |
+| Database | nothing: no tables and no migrations of its own |
 | Rekhu | an account with an app key and credit; [sign up](https://rekhu.com/register), then top up from $10 under **Billing** |
+
+Laravel 10 and 11 no longer get security fixes and every release of them has open advisories, so a current Composer
+refuses to install them unless the app allows it; upgrading the app is the real fix.
 
 ## Getting started
 
@@ -69,7 +74,7 @@
 
 [Create a Rekhu account](https://rekhu.com/register) and put credit on it under **Billing** (from $10). The assistant draws from that credit per conversation; without credit it cannot answer.
 
-Then create a **project** under **Projects → New project**: choose **Laravel app**, monolith or multi-tenant, and name it (for example "Shop"). Turn on its assistant on the **Assistant** tab, and on the **Connection** tab add a key for your first environment (`local`). Add one per environment later (`staging`, `production`); they all count toward the same project. A key is shown once, together with the commands of the next step.
+Then create a **project** under **Projects → New project**: choose **Laravel app**, monolith or multi-tenant, and name it (for example "Shop"). Turn on its assistant on the **Assistant** tab, and on the **Connection** tab add a key for your first environment (`local`) in the **Rekhu Assistant** card. Rekhu Builder's key in the card above it is a different key, for `rekhu/laravel-dev`. Add one per environment later (`staging`, `production`); they all count toward the same project. A key is shown once, together with the commands of the next step.
 
 ### 2. Install the package
 
@@ -429,8 +434,8 @@ The package carries the conversation; how the chat looks is yours. The widget ca
 import { createClient } from '@rekhu/assistant-widget';
 
 const chat = createClient({ endpoint: 'https://api.example.com/api/rekhu/assistant/chat', headers: () => ({ Authorization: `Bearer ${token}` }), credentials: 'omit' });
-const { greeting, quick } = await chat.history();
-await chat.send('Where is my order?', (event) => { /* text, step, card, error, done */ });
+const { greeting, quick, report } = await chat.history();
+await chat.send('Where is my order?', (event) => { /* text, step, card, error, done (with the answer's id) */ });
 ```
 
 The [widget's README](https://www.npmjs.com/package/@rekhu/assistant-widget) lists every variable, part and method.
@@ -471,6 +476,68 @@ public function quote(QuoteRequest $request) { … }   // the route must work wi
 | Caps | Per visitor per day (20 messages), per IP address per hour (60), for all visitors together per day (1000), plus shorter messages and fewer steps per answer. All set under `guests` in the config. |
 | CSRF | Stays on, as for signed-in users. |
 | Cost | All visitors together show as one tenant, **Visitors**, in the project's usage, and count toward its monthly limit. Set that limit before you turn the public chat on. |
+
+## Reports
+
+Under each answer the user sees **Report a problem**. They pick what went wrong, may say what they expected instead, and send it; the link becomes "Thanks, we will look into it." The report shows up in the **Reports** section of the project's **Assistant** tab in your Rekhu account, linked to the conversation it came from, so you can see what went wrong and improve the knowledge, the help or your actions.
+
+No tables needed; no route, controller or migration of your own. The report goes to Rekhu, and the package dispatches an event you can listen to.
+
+**What a report contains.** The package builds it on the server from the conversation it kept; the browser only sends the answer's id, the reason and the comment.
+
+| Sent | |
+|---|---|
+| the reason and the comment | what the user picked and wrote |
+| the answer and the question before it | as the user saw them |
+| the conversation up to the answer | the user's messages and the answers, at most the last 30 |
+| the actions the answer used | their name, their input and whether they worked (or the error) |
+| the user's language | |
+| **not** sent | what your actions returned: it can hold your customers' personal data. Set `reports.include_results` to `true` to send it, cut to 4000 characters per action |
+
+The user is identified by their id only, as with every call. Reports are visible to the project's team in your Rekhu account. A second report on the same answer by the same user replaces the first.
+
+**Configure it** in `config/rekhu-assistant.php`:
+
+```php
+'reports' => [
+    'enabled' => true,
+    'reasons' => [                      // key => label; null is the built-in text (en, ar, nl)
+        'wrong_answer' => null,
+        'misunderstood' => null,
+        'wrong_information' => null,
+        'other' => null,
+        'wrong_numbers' => ['en' => 'The numbers are wrong', 'ar' => 'الأرقام غير صحيحة'],   // your own
+    ],
+    'max_comment' => 1000,
+    'per_user_per_hour' => 20,
+    'guests' => true,                   // visitors of the public chat may report too
+    'include_results' => false,
+],
+```
+
+The widget and the history show the server's reasons in the user's language; a chat of your own builds its form from `history().report` and never hard-codes them. `'enabled' => false` removes the link and the route.
+
+**A copy of your own.** Listen to the event for a table of your own, a message to your team or a ticket:
+
+```php
+use Rekhu\Assistant\Events\AnswerReported;
+
+Event::listen(function (AnswerReported $event) {
+    // $event->user (null for a visitor), $event->conversation, $event->message, $event->reason, $event->comment
+    // $event->report: everything that was sent to Rekhu
+});
+```
+
+**A chat of your own** reports with the headless client, by the answer's id from the history or from the stream's `done` event:
+
+```js
+let answer;
+await chat.send('Revenue in May?', (event) => { if (event.type === 'done') answer = event.message; });
+const { report } = await chat.history();            // report.reasons, report.max_comment
+await chat.report({ message: answer, reason: 'wrong_answer', comment: 'It was 41,200' });   // { message: thank-you }
+```
+
+When Rekhu cannot be reached, the user is still thanked; the failure goes to your log and the report is tried once more, on your queue when the app has one. `php artisan rekhu:assistant` says whether reports are on and whether Rekhu takes them.
 
 ## Projects, usage and limits
 
@@ -517,7 +584,7 @@ Browser (widget)  ──▶  your Laravel app (this package)  ──▶  Rekhu  
 | **Throttling** | The chat is rate limited; the public chat adds caps per visitor, per IP address and per day. |
 | **No markup from the model** | The widget escapes everything the model writes and only links to `http(s)` addresses or your own paths. |
 | **No inbound connection** | Your app calls Rekhu. There is no endpoint in your app for Rekhu to call. |
-| **What leaves your app** | The conversation, and what your marked actions, pages and help return to the assistant, are sent to Rekhu and the model provider to produce the answer. Users are identified by their id only, never by name or e-mail. Conversations are stored in your app's cache, for 24 hours by default (`conversation_minutes`). |
+| **What leaves your app** | The conversation, and what your marked actions, pages and help return to the assistant, are sent to Rekhu and the model provider to produce the answer. Users are identified by their id only, never by name or e-mail. Conversations are stored in your app's cache, for 24 hours by default (`conversation_minutes`). A report on an answer sends the question, the answer, the conversation up to it and the actions' input, not their results ([Reports](#reports)). |
 
 ## Configuration
 
@@ -535,6 +602,7 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 | `REKHU_ASSISTANT_MIDDLEWARE` | `web,auth` | Who may use the chat. `api,auth:sanctum` for an API. |
 | `REKHU_ASSISTANT_GUESTS` | `false` | Turns on the public chat for visitors. |
 | `REKHU_ASSISTANT_GUEST_MIDDLEWARE` | `web` | The middleware of the public chat. |
+| `REKHU_ASSISTANT_REPORTS` | `true` | Offers "Report a problem" under each answer; reports go to the project's Assistant tab. |
 | `REKHU_PLATFORM` | `https://api.rekhu.ai` | Only for a test platform. |
 
 `config/rekhu-assistant.php` also holds:
@@ -593,7 +661,7 @@ The chat routes always answer errors as JSON, also those of your own middleware:
 | Command | What it does |
 |---|---|
 | `php artisan rekhu:assistant-install --key=agk_…` | Checks the key with Rekhu, writes it to `.env`, publishes the config and creates the help folder. |
-| `php artisan rekhu:assistant` | Shows your credit, lists the actions, pages and help topics, and tests the connection to Rekhu. |
+| `php artisan rekhu:assistant` | Shows your credit, lists the actions, pages and help topics, says whether reports are on, and tests the connection to Rekhu. |
 | `php artisan rekhu:assistant --user=12` | The same, as one user: only what that user may use. |
 
 ## Troubleshooting
