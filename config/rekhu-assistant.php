@@ -100,6 +100,21 @@ return [
         'limit' => 300,
     ],
 
+    // The chat's own log, beside the app's: every question, every action the assistant ran with its input, outcome and
+    // time, and every failure. storage/logs/rekhu-assistant-YYYY-MM-DD.log, kept 14 days; "channel" writes to one of
+    // your logging channels instead. What actions returned is left out unless "results" is on: it can hold personal data.
+    'log' => [
+        'enabled' => (bool) env('REKHU_ASSISTANT_LOG', true),
+        'channel' => env('REKHU_ASSISTANT_LOG_CHANNEL'),
+        'path' => null,
+        'days' => 14,
+        'results' => false,
+    ],
+
+    // Under each answer, for signed-in users: the actions it ran, their input, outcome and time. null is on in the local
+    // environment only; never shown in the public chat.
+    'debug' => env('REKHU_ASSISTANT_DEBUG'),
+
     // Help files the assistant answers from: markdown, one topic per file. Empty means resources/rekhu/help.
     'help_path' => null,
 

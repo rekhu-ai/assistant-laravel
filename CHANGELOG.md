@@ -2,6 +2,15 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.9.0 · 25 October 2026
+
+- **The chat log.** Every question, every action the assistant ran (its input, the outcome and how long it took), every answer and every failure, one line each in `storage/logs/rekhu-assistant-YYYY-MM-DD.log`, kept 14 days. Users are logged by their id; what actions returned stays out unless `log.results` is on. `REKHU_ASSISTANT_LOG=false` turns it off, `REKHU_ASSISTANT_LOG_CHANNEL` writes to one of your logging channels.
+- **The developer view.** In the local environment, or with `REKHU_ASSISTANT_DEBUG=true`, the stream gets a `debug` event for each action the assistant ran: its input, the outcome, the time, and the error or the result it read. Widget 0.5.0 shows them under the answer. Never sent to visitors of the public chat.
+- **`php artisan rekhu:assistant:try`.** Runs one action as a user and language, exactly as the chat does, and shows what the assistant reads of the result: `rekhu:assistant:try show_order --user=12 --locale=ar --input='{"order":1042}'`.
+- **`php artisan rekhu:assistant:check`.** Finds what makes the assistant answer badly before users do: descriptions too short or too long, inputs without a meaning, records looked up by another key than their id or by a `resolveRouteBinding()` of their own, and, with `--user`, reading actions that are refused, longer than the assistant reads, lists without paging, or slow. Fails when it finds problems, so it can run in CI.
+- `page` and `per_page` are described to the assistant without an `inputs` entry.
+- The README has a section on finding out why an answer is wrong.
+
 ## 0.8.1 · 25 October 2026
 
 - The examples for Tool classes, `inputs`, `fields` and `accessUsing()` in the README and the code are about a shop, like the rest of the guide.

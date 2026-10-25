@@ -1,4 +1,4 @@
-/*! @rekhu/assistant-widget 0.4.0 · https://rekhu.com · generated from src/index.js, do not edit */
+/*! @rekhu/assistant-widget 0.5.0 · https://rekhu.com · generated from src/index.js, do not edit */
 (() => {
 /*
  * The Rekhu Assistant widget: a chat button and panel as <rekhu-assistant>, in its own shadow DOM so the app's CSS and
@@ -65,6 +65,25 @@ textarea:focus { border-color: var(--c); }
 .report-count { align-self: flex-end; font-size: 11px; color: #9ca3af; }
 .report-error { color: #991b1b; }
 .report-thanks { color: #047857; }
+.debug { align-self: stretch; margin-top: -6px; font-size: 12px; color: #6b7280; }
+.debug-toggle { background: none; border: 0; padding: 2px 0; font: inherit; color: inherit; cursor: pointer; }
+.debug-toggle:hover, .debug-toggle:focus-visible { color: var(--rekhu-text, #111827); text-decoration: underline; }
+.debug.failed .debug-toggle { color: #b45309; }
+.debug-toggle::before { content: "▾"; display: inline-block; margin-inline-end: 4px; transform: rotate(-90deg); }
+.debug-toggle:dir(rtl)::before { transform: rotate(90deg); }
+.debug-toggle[aria-expanded="true"]::before { transform: none; }
+.debug-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; color: var(--rekhu-text, #111827); }
+.debug-list[hidden] { display: none; }
+.debug-action { min-width: 0; padding: 8px 10px; border: 1px solid var(--rekhu-border, #e5e7eb); border-radius: 10px; background: var(--rekhu-surface, #fff); display: flex; flex-direction: column; gap: 4px; }
+.debug-action.failed { border-color: #fde68a; background: #fffbeb; }
+.debug-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.debug code, .debug pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; }
+.debug-name { font-weight: 600; }
+.debug-mark { color: #047857; } .debug-action.failed .debug-mark { color: #b45309; }
+.debug-ms { margin-inline-start: auto; color: #6b7280; }
+.debug-input { color: #4b5563; word-break: break-all; }
+.debug-error { color: #991b1b; }
+.debug pre { margin: 0; padding: 6px 8px; max-height: 160px; overflow: auto; border-radius: 6px; background: rgba(127,127,127,.1); white-space: pre-wrap; word-break: break-all; }
 `;
 
 
@@ -299,6 +318,7 @@ const TEXTS = {
         report: 'Report a problem', reportTitle: 'What went wrong?', reportPlaceholder: 'What did you expect instead? (optional)',
         reportSend: 'Send report', reportThanks: 'Thanks, we will look into it.', reportFailed: 'Could not send the report.',
         download: 'Download',
+        debugAction: '{n} action', debugActions: '{n} actions', debugFailed: '{n} failed', debugOk: 'ok', debugError: 'failed',
     },
     ar: {
         signedOut: 'انتهت جلستك. أعد تحميل الصفحة وسجّل الدخول من جديد.',
@@ -311,6 +331,7 @@ const TEXTS = {
         report: 'الإبلاغ عن مشكلة', reportTitle: 'ما الخطأ؟', reportPlaceholder: 'ماذا كنت تتوقع بدلاً من ذلك؟ (اختياري)',
         reportSend: 'إرسال البلاغ', reportThanks: 'شكراً، سنراجع ذلك.', reportFailed: 'تعذّر إرسال البلاغ.',
         download: 'تنزيل',
+        debugAction: 'إجراء واحد', debugActions: '{n} إجراءات', debugFailed: 'فشل {n}', debugOk: 'تم', debugError: 'فشل',
     },
     nl: {
         signedOut: 'Je sessie is verlopen. Laad de pagina opnieuw en log weer in.',
@@ -323,6 +344,7 @@ const TEXTS = {
         report: 'Meld een probleem', reportTitle: 'Wat ging er mis?', reportPlaceholder: 'Wat had je verwacht? (optioneel)',
         reportSend: 'Verstuur melding', reportThanks: 'Bedankt, we kijken ernaar.', reportFailed: 'De melding kon niet worden verstuurd.',
         download: 'Downloaden',
+        debugAction: '{n} actie', debugActions: '{n} acties', debugFailed: '{n} mislukt', debugOk: 'gelukt', debugError: 'mislukt',
     },
 };
 
@@ -338,7 +360,7 @@ const language = (locale) => {
  *
  *     const chat = createClient({ endpoint: '/rekhu/assistant/chat', headers: () => ({ Authorization: `Bearer ${token}` }) });
  *     const { greeting, quick, messages, report } = await chat.history();
- *     await chat.send('Where is my order?', (event) => { … });   // start, text, step, card, error, done (PROTOCOL.md)
+ *     await chat.send('Where is my order?', (event) => { … });   // start, text, step, card, debug, error, done (PROTOCOL.md)
  *     await chat.report({ message: 'm_2', reason: 'wrong_answer', comment: 'I expected …' });   // { message: thank-you }
  */
 function createClient(options = {}) {
@@ -452,6 +474,36 @@ const bytes = (size) => {
     let i = 0;
     while (n >= 1024 && i < units.length - 1) { n /= 1024; i += 1; }
     return `${i === 0 ? n : n < 10 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
+};
+
+// the developer view: the actions the assistant ran for one answer, from the server's debug events (sent only when
+// debug is on, never to visitors)
+const count = (words, n) => String(words).replace('{n}', String(n));
+const failedAction = (a) => a.ok === false || Boolean(a.error);
+
+// "2 actions · 1 failed · 340 ms"
+const debugSummary = (actions, t) => {
+    const failed = actions.filter(failedAction).length;
+    const ms = actions.reduce((sum, a) => sum + (Number(a.ms) || 0), 0);
+    return [count(actions.length === 1 ? t.debugAction : t.debugActions, actions.length), failed ? count(t.debugFailed, failed) : '', `${amount(ms, 0)} ms`].filter(Boolean).join(' · ');
+};
+
+// JSON indented for reading; a result the server cut short is not valid JSON and is shown as it came
+const readable = (value) => {
+    if (typeof value === 'string') { try { return JSON.stringify(JSON.parse(value), null, 2); } catch { return value; } }
+    return JSON.stringify(value ?? null, null, 2);
+};
+
+// one action: its name, ok or failed, the time, the input on one line, then the error or the result
+const debugAction = (a, t) => {
+    const failed = failedAction(a);
+    const pre = (value) => `<pre dir="ltr">${escape(readable(value))}</pre>`;
+    const outcome = failed
+        ? `<div class="debug-error">${escape(a.error || t.failed)}</div>${a.errors && typeof a.errors === 'object' && Object.keys(a.errors).length ? pre(a.errors) : ''}`
+        : a.result != null && a.result !== '' ? pre(a.result) : '';
+    return `<li class="debug-action${failed ? ' failed' : ''}" part="debug-action"><div class="debug-head"><code class="debug-name" dir="ltr">${escape(a.action ?? '')}</code>`
+        + `<span class="debug-mark">${failed ? '✕' : '✓'} ${escape(failed ? t.debugError : t.debugOk)}</span><span class="debug-ms" dir="ltr">${escape(amount(Number(a.ms) || 0, 0))} ms</span></div>`
+        + `<code class="debug-input" dir="ltr">${escape(JSON.stringify(a.input ?? {}))}</code>${outcome}</li>`;
 };
 
 const build = () => class RekhuAssistantElement extends HTMLElement {
@@ -623,6 +675,7 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         let text = '';
         let step = null;
         let answer = null;
+        const actions = [];
         const endStep = () => { if (step) { step.classList.add('over'); step = null; } };
         try {
             await this.client.send(payload, (event) => {
@@ -637,9 +690,12 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
                 if (event.type === 'card') { endStep(); bubble = null; this.card(event); }
                 if (event.type === 'error') { endStep(); this.add('error', escape(event.message)); this.emit('error', event); }
                 if (event.type === 'done' && event.message) answer = event.message;
+                if (event.type === 'debug') actions.push(event);
             });
+            if (actions.length) this.debug(actions);
             if (answer) await this.reportLink(answer);
         } catch (error) {
+            if (actions.length) this.debug(actions);
             if (error.status === 401 || error.status === 419) this.emit('unauthorized', { status: error.status });
             this.add('error', escape(error.message || this.t.failed));
         } finally {
@@ -647,6 +703,22 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
             this.busy = false;
             this.sendButton.disabled = false;
         }
+    }
+
+    /** The developer view under an answer: a line with what the assistant ran, which opens the list of its actions. */
+    debug(actions) {
+        const t = this.t;
+        const id = `debug-${Math.random().toString(36).slice(2, 8)}`;
+        const box = this.add(actions.some(failedAction) ? 'debug failed' : 'debug',
+            `<button type="button" class="debug-toggle" part="debug-toggle" aria-expanded="false" aria-controls="${id}">${escape(debugSummary(actions, t))}</button>`
+            + `<ol class="debug-list" id="${id}" hidden>${actions.map((a) => debugAction(a, t)).join('')}</ol>`);
+        const toggle = box.querySelector('button');
+        const list = box.querySelector('ol');
+        toggle.addEventListener('click', () => {
+            list.hidden = !list.hidden;
+            toggle.setAttribute('aria-expanded', String(!list.hidden));
+        });
+        return box;
     }
 
     /** What the server lets users report: its reasons and the comment limit; null when reports are off. */

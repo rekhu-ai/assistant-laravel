@@ -12,17 +12,23 @@ use Rekhu\Assistant\Http\Requests\ChatRequest;
 /**
  * One turn of the conversation: the user's words (or their click on a confirm button) in, the model's answer out, with
  * the actions, pages and help it used along the way. Events are handed to $emit as they happen:
- *   text {text}  ·  step {label}  ·  card {kind: page|confirm|done|failed|file, …}
+ *   text {text}  ·  step {label}  ·  card {kind: page|confirm|done|failed|file, …}  ·  debug {action, input, ok, …}
+ * Every question, action and answer is written to the chat log; debug events go only to signed-in users, and only
+ * when debug is on (by default in the local environment).
  */
 class Turn
 {
-    private const RESULT_LIMIT = 30000;
+    public const RESULT_LIMIT = 30000;
 
     private array $actions;
 
     private array $pages;
 
     private array $help;
+
+    private bool $debug;
+
+    private ?string $userRef;
 
     /** $visitor: the anonymous id of a visitor in the public chat; they have no user and only the guest actions. */
     public function __construct(private Request $request, private Conversation $conversation, private Closure $emit, private ?string $visitor = null)
@@ -31,6 +37,8 @@ class Turn
         $this->actions = Actions::for($user);
         $this->pages = Pages::for($user);
         $this->help = Help::topics();
+        $this->userRef = $user ? (string) $user->getAuthIdentifier() : null;
+        $this->debug = $visitor === null && (bool) (config('rekhu-assistant.debug') ?? app()->environment('local'));
     }
 
     /** Returns the id of the answer when it has words the user sees, else null. */
@@ -40,6 +48,7 @@ class Turn
             $this->confirmed($confirm);
         } else {
             $this->conversation->messages[] = ['role' => 'user', 'content' => Str::limit(trim($text), ChatRequest::maxMessage($this->visitor !== null), ''), 'id' => $this->conversation->nextId()];
+            ChatLog::question($this->conversation, trim($text), $this->userRef, $this->visitor);
         }
         $answer = $this->conversation->nextId();
         $user = $this->visitor === null ? $this->request->user() : null;
@@ -48,7 +57,11 @@ class Turn
         $tools = $this->tools();
         $steps = $this->visitor === null ? (int) config('rekhu-assistant.max_steps', 8) : (int) config('rekhu-assistant.guests.max_steps', 4);
 
+        $stop = null;
+        $chars = 0;
+        $calls = 0;
         for ($step = 0; $step < $steps; $step++) {
+            $calls++;
             $message = $platform->message([
                 'model' => config('rekhu-assistant.model'),
                 'max_tokens' => (int) config('rekhu-assistant.max_tokens', 4000),
@@ -57,7 +70,9 @@ class Turn
                 'messages' => self::cached($this->conversation->forModel()),
             ], fn ($delta) => ($this->emit)(['type' => 'text', 'text' => $delta]));
             $this->conversation->messages[] = ['role' => 'assistant', 'content' => $message['content'], 'id' => $answer];
-            if ($message['stop_reason'] !== 'tool_use') {
+            $stop = $message['stop_reason'];
+            $chars += array_sum(array_map(fn ($block) => ($block['type'] ?? '') === 'text' ? mb_strlen((string) $block['text']) : 0, $message['content']));
+            if ($stop !== 'tool_use') {
                 break;
             }
             $results = [];
@@ -65,7 +80,9 @@ class Turn
                 if (($block['type'] ?? '') !== 'tool_use') {
                     continue;
                 }
+                $started = hrtime(true);
                 $outcome = $this->call($block['name'], (array) $block['input']);
+                $this->trace($block['name'], (array) $block['input'], $outcome, $started);
                 $results[] = [
                     'type' => 'tool_result',
                     'tool_use_id' => $block['id'],
@@ -75,8 +92,29 @@ class Turn
             $this->conversation->messages[] = ['role' => 'user', 'content' => $results];
         }
         $this->conversation->save();
+        ChatLog::answer($this->conversation, $calls, $chars, $stop, $this->userRef, $this->visitor);
 
         return $this->conversation->answered($answer) ? $answer : null;
+    }
+
+    /** The action in the chat log, and for a developer in debug mode under the answer: its input, outcome and time. */
+    private function trace(string $name, array $input, array $outcome, int $started): void
+    {
+        $ms = (int) round((hrtime(true) - $started) / 1e6);
+        ChatLog::action($this->conversation, $name, $input, $outcome, $ms, $this->userRef, $this->visitor);
+        if (! $this->debug) {
+            return;
+        }
+        ($this->emit)(array_filter([
+            'type' => 'debug',
+            'action' => $name,
+            'input' => (object) $input,
+            'ok' => $outcome['ok'],
+            'ms' => $ms,
+            'error' => $outcome['ok'] ? null : $outcome['error'],
+            'errors' => $outcome['ok'] ? null : ($outcome['errors'] ?? null),
+            'result' => $outcome['ok'] ? Str::limit(Shape::json(Shape::fit($outcome['result'], self::RESULT_LIMIT)), 2000) : null,
+        ], fn ($v) => $v !== null));
     }
 
     /** The user clicked confirm: the action runs now with exactly the input they saw, and the model is told the outcome. */
@@ -91,7 +129,9 @@ class Turn
             return;
         }
         ($this->emit)(['type' => 'step', 'label' => $action['label'] ?? __('rekhu-assistant::messages.working')]);
+        $started = hrtime(true);
         $outcome = Dispatcher::run($action, $pending['input'], $this->request);
+        $this->trace($pending['tool'], $pending['input'], $outcome, $started);
         $this->card($action, $outcome);
         $this->conversation->report('I confirmed "'.$action['description'].'". '
             .($outcome['ok'] ? 'It ran. The result: '.Shape::json(Shape::fit($outcome['result'], self::RESULT_LIMIT))

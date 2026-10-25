@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Rekhu\Assistant\Support;
 
 use Illuminate\Support\Facades\Log;
+use Rekhu\Assistant\Runtime\ChatLog;
 use Rekhu\Assistant\Runtime\Refused;
 use Throwable;
 
@@ -16,6 +17,7 @@ final class Failures
 {
     public static function report(Throwable $e): string
     {
+        ChatLog::failure($e);
         $type = $e instanceof Refused ? $e->type : null;
         match (true) {
             $type === 'app_limit' => Log::warning('Rekhu Assistant: the assistant of this project is paused or at its monthly limit; see the Assistant tab of the project in your Rekhu account. '.$e->getMessage()),

@@ -19,6 +19,12 @@ use Throwable;
  */
 class Schema
 {
+    /** What the paging inputs every list has mean, unless the action says otherwise. */
+    private const PAGING = [
+        'page' => 'Which page of the results, from 1',
+        'per_page' => 'How many results per page',
+    ];
+
     /** @param  array<string, mixed>|class-string  $rules  @param  array<string, string>  $inputs */
     public static function of(?Route $route, array|string $rules, ?Authenticatable $user, array $inputs = []): array
     {
@@ -37,7 +43,7 @@ class Schema
         foreach ($rules as $field => $rule) {
             $parts = explode('.', (string) $field);
             $list = self::rules($rule);
-            $schema = self::field($list, $inputs[$field] ?? null);
+            $schema = self::field($list, $inputs[$field] ?? self::PAGING[$field] ?? null);
             if (count($parts) === 1) {
                 $properties[$field] = array_merge($properties[$field] ?? [], $schema);
                 if (in_array('required', $list, true)) {

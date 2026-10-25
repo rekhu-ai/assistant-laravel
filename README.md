@@ -53,7 +53,8 @@
 14. [Security](#security)
 15. [Configuration](#configuration): [your own routes](#your-own-routes) · [translations](#translations)
 16. [Commands](#commands)
-17. [Troubleshooting](#troubleshooting)
+17. [When an answer is wrong](#when-an-answer-is-wrong)
+18. [Troubleshooting](#troubleshooting)
 
 ## Requirements
 
@@ -698,6 +699,9 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 | `REKHU_ASSISTANT_GUESTS` | `false` | Turns on the public chat for visitors. |
 | `REKHU_ASSISTANT_GUEST_MIDDLEWARE` | `web` | The middleware of the public chat. |
 | `REKHU_ASSISTANT_REPORTS` | `true` | Offers "Report a problem" under each answer; reports go to the project's Assistant tab. |
+| `REKHU_ASSISTANT_LOG` | `true` | The chat log in `storage/logs/rekhu-assistant-YYYY-MM-DD.log`. |
+| `REKHU_ASSISTANT_LOG_CHANNEL` | | One of your logging channels for the chat log instead of its own file. |
+| `REKHU_ASSISTANT_DEBUG` | local only | The developer view under each answer. |
 | `REKHU_PLATFORM` | `https://api.rekhu.ai` | Only for a test platform. |
 
 `config/rekhu-assistant.php` also holds:
@@ -713,6 +717,7 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 | `max_tokens`, `max_steps` | How long one answer may get, and how many action rounds one turn may take. |
 | `guests.*` | The public chat: its greeting, message length, steps and caps. |
 | `tools.path`, `tools.namespace` | Where the [Tool classes](#tool-classes) are (`app/Assistant/Tools`). |
+| `log.*`, `debug` | The [chat log](#when-an-answer-is-wrong) (on, 14 days, without results) and the developer view (local only). |
 | `files.minutes`, `files.max_mb`, `files.store` | How long a [file](#files) stays downloadable, its largest size, and the cache store that keeps it. |
 
 ### Your own routes
@@ -760,6 +765,61 @@ The chat routes always answer errors as JSON, also those of your own middleware:
 | `php artisan rekhu:assistant-install --key=agk_…` | Checks the key with Rekhu, writes it to `.env`, publishes the config and creates the help folder. |
 | `php artisan rekhu:assistant` | Shows your credit, lists the actions, pages and help topics, says whether reports are on, and tests the connection to Rekhu. |
 | `php artisan rekhu:assistant --user=12` | The same, as one user: only what that user may use. |
+| `php artisan rekhu:assistant:try list_orders --user=12 --locale=ar --input='{"status":"open"}'` | Runs one action as that user and language, exactly as the chat does, and shows what the assistant reads of the result. |
+| `php artisan rekhu:assistant:check --user=12 --locale=ar` | Finds what makes the assistant answer badly: unclear actions, results it cannot read whole, lists without paging, records looked up by another key. Fails with problems, so it can run in CI. |
+| `php artisan make:assistant-tool OverdueInvoices` | Makes a [Tool class](#tool-classes) in `app/Assistant/Tools`. |
+
+## When an answer is wrong
+
+The assistant reads your app through its actions. When an answer is wrong, it is almost always what an action gave it: refused, too long to read whole, or another record than you meant. Four tools show you which.
+
+**The chat log.** Every question, every action the assistant ran with its input, outcome and time, and every failure, one line each in `storage/logs/rekhu-assistant-YYYY-MM-DD.log`, next to Laravel's own log:
+
+```
+[2026-10-25 19:50:21] production.INFO: question {"conversation":"830df1db-…","user":"12","text":"Is order 1042 shipped?"}
+[2026-10-25 19:50:24] production.INFO: action {"conversation":"830df1db-…","user":"12","action":"show_order","input":{"order":1042},"ok":true,"ms":57,"size":628}
+[2026-10-25 19:50:27] production.INFO: answer {"conversation":"830df1db-…","user":"12","steps":2,"chars":106,"stop":"end_turn"}
+```
+
+A failed action is a `WARNING` with the reason the assistant got (`"error":"that record does not exist, or the user cannot see it"`). Users are logged by their id, never by name. What actions returned stays out unless `log.results` is on, since it can hold personal data. Turn it off with `REKHU_ASSISTANT_LOG=false`, keep fewer days with `log.days`, or write to one of your own logging channels with `REKHU_ASSISTANT_LOG_CHANNEL`.
+
+**The developer view.** In your local environment, under each answer, the chat shows which actions it ran, their input, how long they took, and the error or the result the assistant read. `REKHU_ASSISTANT_DEBUG=true` turns it on elsewhere, for example on staging, and `false` turns it off. Visitors of the public chat never see it. A chat of your own gets the same as `debug` events (see PROTOCOL.md).
+
+**Try one action.** Run it as a user, in their language, with the input the assistant gave:
+
+```bash
+php artisan rekhu:assistant:try show_branch --user=12 --locale=ar --input='{"branch":10}'
+```
+
+```
+show_branch as user 12, in ar · GET /api/branches/{branch}
+Input  {"branch":10}
+Refused in 33 ms: that record does not exist, or the user cannot see it
+```
+
+**Check every action.** Before your users find it:
+
+```bash
+php artisan rekhu:assistant:check --user=12 --locale=ar
+```
+
+```
+  ! find_customer
+      problem It returns 369,954 characters; the assistant reads 29,929. Keep only what it needs with fields: [...], or return fewer per page.
+      hint    It returns 5661 rows without paging: the assistant cannot tell whether there are more. Paginate it, or return the total.
+  ! show_shop
+      hint    {shop} is looked up by its code, not by id. Make sure the action that lists them gives the assistant that value, and calls it the id.
+```
+
+**What these usually point to:**
+
+| What you see | Usually | What to do |
+|---|---|---|
+| "that record does not exist" for a record that does | The list gave one id and the route looks the record up by another: a slug, a code, a `row_id`, or the same id in another language | Let the list return the value the route takes, as `id` |
+| Wrong totals, or "only some" of the records | The result was longer than the assistant reads, or a list without paging | `fields: [...]`, fewer per page, or the total in the result |
+| Filters ignored, always the same answer | Fixed in 0.7.1: update the package | |
+| The answer is right in one language, wrong in another | Records or texts looked up by the request's language | Run `try` and `check` with `--locale` for each language |
+| An action is never used | It is not offered to that user, or its description does not say when to use it | `rekhu:assistant --user=…`, then a clearer description |
 
 ## Troubleshooting
 
@@ -768,6 +828,7 @@ The chat routes always answer errors as JSON, also those of your own middleware:
 | No chat button | The tag shows for signed-in users (and for visitors with `REKHU_ASSISTANT_GUESTS=true`). Check that it is in the layout this page uses. |
 | "Your session has ended" | The chat got a 401 or 419: the sign-in or the CSRF token expired. In API mode, check the token and `REKHU_ASSISTANT_MIDDLEWARE`. |
 | An action is missing | Run `php artisan rekhu:assistant --user=<id>`. A `can:` middleware hides an action from users who may not use it. |
+| A wrong or odd answer | See [When an answer is wrong](#when-an-answer-is-wrong): the chat log, the developer view, `rekhu:assistant:try` and `rekhu:assistant:check`. |
 | "The assistant is not available right now" | The project's assistant is paused or at its monthly limit, your Rekhu credit is used up, the app could not reach Rekhu, or the key is wrong. The app's log says which; `php artisan rekhu:assistant` checks the key and the credit. |
 | CORS errors in the browser | In API mode, add `rekhu/assistant/*` to `paths` and your front end's domain to `allowed_origins` in `config/cors.php`. |
 

@@ -76,6 +76,7 @@ The `data` line is JSON and always repeats the event's `type`. The events, in th
 | `text` | `text` | a piece of the answer; append it to the current answer bubble |
 | `step` | `label` | the assistant is doing something ("Looking in the help", an action's name); ends when any next event comes |
 | `card` | `kind`, … | something to show or click; see below |
+| `debug` | `action`, `input`, `ok`, `ms`, `result?`, `error?`, `errors?` | for developers: one action the assistant ran; only when debug is on, see below |
 | `error` | `message` | the turn could not finish; show `message` to the user as it is |
 | `done` | `message?` | always last when the turn finished; `message` is the id of the answer just given (`"m_7"`), when it has words the user sees |
 
@@ -96,6 +97,27 @@ A `text` after a `step` or a `card` starts a new answer bubble. All the bubbles 
 ```json
 {"type": "card", "kind": "file", "title": "Your transactions", "name": "transactions.xlsx", "url": "https://api.example.com/rekhu/assistant/files/f_1?expires=…&signature=…", "size": 12345}
 ```
+
+### Debug
+
+When the server package's debug setting is on (for example in a local or development environment), it sends one `debug` event per action the assistant ran, as the action finishes: during the answer, before its text or between its parts. It sends them only to signed-in users, never on the public chat for visitors, and never when debug is off.
+
+| Field | |
+|---|---|
+| `action` | the action's name |
+| `input` | the input it ran with |
+| `ok` | `false` when it was refused or failed |
+| `ms` | how long it took, in milliseconds |
+| `result` | when it ran: the JSON the assistant read, as a string, cut to 2000 characters (so not always valid JSON) |
+| `error` | when it failed: why, as the assistant was told |
+| `errors` | optional, when it failed on validation: the errors per field |
+
+```json
+{"type": "debug", "action": "list_orders", "input": {"status": "open"}, "ok": true, "ms": 120, "result": "{\"orders\": [{\"id\": 1001, \"status\": \"open\"}]}"}
+{"type": "debug", "action": "show_order", "input": {"order": 99}, "ok": false, "ms": 33, "error": "that record does not exist, or the user cannot see it"}
+```
+
+A `debug` event does not start a new answer bubble and does not end a `step`. The history does not keep it. A client may ignore it; one that shows it escapes every text in it.
 
 **Confirming.** Nothing runs when the confirm card is shown. The server package keeps the action and its exact input on the server under `id`. Only a `POST` with `"confirm": "<id>"` runs it, with that stored input; a typed "yes", or an id the server package did not issue to this user in this conversation, runs nothing. Cancel is an ordinary message ("No, cancel that.").
 

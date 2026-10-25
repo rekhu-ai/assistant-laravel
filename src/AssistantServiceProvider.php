@@ -4,9 +4,11 @@ namespace Rekhu\Assistant;
 
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\ServiceProvider;
+use Rekhu\Assistant\Console\CheckCommand;
 use Rekhu\Assistant\Console\InstallCommand;
 use Rekhu\Assistant\Console\MakeToolCommand;
 use Rekhu\Assistant\Console\StatusCommand;
+use Rekhu\Assistant\Console\TryCommand;
 use Rekhu\Assistant\View\Widget;
 
 class AssistantServiceProvider extends ServiceProvider
@@ -29,7 +31,7 @@ class AssistantServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->publishes([__DIR__.'/../config/rekhu-assistant.php' => config_path('rekhu-assistant.php')], 'rekhu-assistant-config');
             $this->publishes([__DIR__.'/../resources/lang' => $this->app->langPath('vendor/rekhu-assistant')], 'rekhu-assistant-lang');
-            $this->commands([InstallCommand::class, StatusCommand::class, MakeToolCommand::class]);
+            $this->commands([InstallCommand::class, StatusCommand::class, MakeToolCommand::class, TryCommand::class, CheckCommand::class]);
         }
     }
 }
