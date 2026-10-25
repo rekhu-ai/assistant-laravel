@@ -2,6 +2,10 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.9.1 · 25 October 2026
+
+- Widget 0.5.1: the developer view labels each action's input and what the assistant read, scrolls long lines instead of breaking words, opens results at the top, and has a Copy button for bug reports.
+
 ## 0.9.0 · 25 October 2026
 
 - **The chat log.** Every question, every action the assistant ran (its input, the outcome and how long it took), every answer and every failure, one line each in `storage/logs/rekhu-assistant-YYYY-MM-DD.log`, kept 14 days. Users are logged by their id; what actions returned stays out unless `log.results` is on. `REKHU_ASSISTANT_LOG=false` turns it off, `REKHU_ASSISTANT_LOG_CHANNEL` writes to one of your logging channels.

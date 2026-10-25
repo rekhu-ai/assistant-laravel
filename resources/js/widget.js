@@ -1,4 +1,4 @@
-/*! @rekhu/assistant-widget 0.5.0 · https://rekhu.com · generated from src/index.js, do not edit */
+/*! @rekhu/assistant-widget 0.5.1 · https://rekhu.com · generated from src/index.js, do not edit */
 (() => {
 /*
  * The Rekhu Assistant widget: a chat button and panel as <rekhu-assistant>, in its own shadow DOM so the app's CSS and
@@ -81,9 +81,12 @@ textarea:focus { border-color: var(--c); }
 .debug-name { font-weight: 600; }
 .debug-mark { color: #047857; } .debug-action.failed .debug-mark { color: #b45309; }
 .debug-ms { margin-inline-start: auto; color: #6b7280; }
-.debug-input { color: #4b5563; word-break: break-all; }
+.debug-label { margin-top: 2px; font-size: 11px; font-weight: 600; color: #6b7280; }
+.debug-copy { margin-inline-start: 6px; padding: 1px 8px; border: 1px solid var(--rekhu-border, #e5e7eb); border-radius: 6px; background: none; font: inherit; font-size: 11px; color: #4b5563; cursor: pointer; }
+.debug-copy:hover, .debug-copy:focus-visible { color: var(--rekhu-text, #111827); border-color: currentColor; }
 .debug-error { color: #991b1b; }
-.debug pre { margin: 0; padding: 6px 8px; max-height: 160px; overflow: auto; border-radius: 6px; background: rgba(127,127,127,.1); white-space: pre-wrap; word-break: break-all; }
+.debug pre { margin: 0; padding: 6px 8px; max-height: 220px; overflow: auto; border-radius: 6px; background: rgba(127,127,127,.1); white-space: pre; text-align: left; }
+.debug pre.debug-input { max-height: none; color: #4b5563; }
 `;
 
 
@@ -319,6 +322,7 @@ const TEXTS = {
         reportSend: 'Send report', reportThanks: 'Thanks, we will look into it.', reportFailed: 'Could not send the report.',
         download: 'Download',
         debugAction: '{n} action', debugActions: '{n} actions', debugFailed: '{n} failed', debugOk: 'ok', debugError: 'failed',
+        debugInput: 'Input', debugRead: 'What the assistant read', debugWhy: 'Why it failed', debugCopy: 'Copy', debugCopied: 'Copied',
     },
     ar: {
         signedOut: 'انتهت جلستك. أعد تحميل الصفحة وسجّل الدخول من جديد.',
@@ -332,6 +336,7 @@ const TEXTS = {
         reportSend: 'إرسال البلاغ', reportThanks: 'شكراً، سنراجع ذلك.', reportFailed: 'تعذّر إرسال البلاغ.',
         download: 'تنزيل',
         debugAction: 'إجراء واحد', debugActions: '{n} إجراءات', debugFailed: 'فشل {n}', debugOk: 'تم', debugError: 'فشل',
+        debugInput: 'المدخلات', debugRead: 'ما قرأه المساعد', debugWhy: 'سبب الفشل', debugCopy: 'نسخ', debugCopied: 'تم النسخ',
     },
     nl: {
         signedOut: 'Je sessie is verlopen. Laad de pagina opnieuw en log weer in.',
@@ -345,6 +350,7 @@ const TEXTS = {
         reportSend: 'Verstuur melding', reportThanks: 'Bedankt, we kijken ernaar.', reportFailed: 'De melding kon niet worden verstuurd.',
         download: 'Downloaden',
         debugAction: '{n} actie', debugActions: '{n} acties', debugFailed: '{n} mislukt', debugOk: 'gelukt', debugError: 'mislukt',
+        debugInput: 'Invoer', debugRead: 'Wat de assistent las', debugWhy: 'Waarom het mislukte', debugCopy: 'Kopiëren', debugCopied: 'Gekopieerd',
     },
 };
 
@@ -494,16 +500,25 @@ const readable = (value) => {
     return JSON.stringify(value ?? null, null, 2);
 };
 
-// one action: its name, ok or failed, the time, the input on one line, then the error or the result
+// one action as a developer pastes it into a bug report
+const debugReport = (a) => JSON.stringify(Object.fromEntries(Object.entries({
+    action: a.action, input: a.input ?? {}, ok: !failedAction(a), ms: a.ms, error: a.error, errors: a.errors,
+    result: typeof a.result === 'string' ? (() => { try { return JSON.parse(a.result); } catch { return a.result; } })() : a.result,
+}).filter(([, v]) => v !== undefined)), null, 2);
+
+// one action: its name, ok or failed, the time and a copy button, then its input, then why it failed or what the
+// assistant read; long lines scroll sideways instead of breaking inside a word
 const debugAction = (a, t) => {
     const failed = failedAction(a);
-    const pre = (value) => `<pre dir="ltr">${escape(readable(value))}</pre>`;
+    const pre = (value, cls = '') => `<pre dir="ltr"${cls ? ` class="${cls}"` : ''}>${escape(readable(value))}</pre>`;
+    const label = (text) => `<div class="debug-label">${escape(text)}</div>`;
     const outcome = failed
-        ? `<div class="debug-error">${escape(a.error || t.failed)}</div>${a.errors && typeof a.errors === 'object' && Object.keys(a.errors).length ? pre(a.errors) : ''}`
-        : a.result != null && a.result !== '' ? pre(a.result) : '';
+        ? label(t.debugWhy) + `<div class="debug-error">${escape(a.error || t.failed)}</div>${a.errors && typeof a.errors === 'object' && Object.keys(a.errors).length ? pre(a.errors) : ''}`
+        : a.result != null && a.result !== '' ? label(t.debugRead) + pre(a.result) : '';
     return `<li class="debug-action${failed ? ' failed' : ''}" part="debug-action"><div class="debug-head"><code class="debug-name" dir="ltr">${escape(a.action ?? '')}</code>`
-        + `<span class="debug-mark">${failed ? '✕' : '✓'} ${escape(failed ? t.debugError : t.debugOk)}</span><span class="debug-ms" dir="ltr">${escape(amount(Number(a.ms) || 0, 0))} ms</span></div>`
-        + `<code class="debug-input" dir="ltr">${escape(JSON.stringify(a.input ?? {}))}</code>${outcome}</li>`;
+        + `<span class="debug-mark">${failed ? '✕' : '✓'} ${escape(failed ? t.debugError : t.debugOk)}</span><span class="debug-ms" dir="ltr">${escape(amount(Number(a.ms) || 0, 0))} ms</span>`
+        + `<button type="button" class="debug-copy" part="debug-copy">${escape(t.debugCopy)}</button></div>`
+        + label(t.debugInput) + `<pre dir="ltr" class="debug-input">${escape(JSON.stringify(a.input ?? {}))}</pre>${outcome}</li>`;
 };
 
 const build = () => class RekhuAssistantElement extends HTMLElement {
@@ -717,7 +732,22 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         toggle.addEventListener('click', () => {
             list.hidden = !list.hidden;
             toggle.setAttribute('aria-expanded', String(!list.hidden));
+            list.querySelectorAll('pre').forEach((pre) => { pre.scrollTop = 0; pre.scrollLeft = 0; });
         });
+        list.querySelectorAll('.debug-copy').forEach((button, i) => button.addEventListener('click', async () => {
+            const text = debugReport(actions[i]);
+            try {
+                await navigator.clipboard.writeText(text);
+            } catch {
+                const area = Object.assign(document.createElement('textarea'), { value: text });
+                this.shadowRoot.appendChild(area);
+                area.select();
+                document.execCommand?.('copy');
+                area.remove();
+            }
+            button.textContent = t.debugCopied;
+            setTimeout(() => { button.textContent = t.debugCopy; }, 1500);
+        }));
         return box;
     }
 
