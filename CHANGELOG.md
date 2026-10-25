@@ -2,6 +2,10 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.7.1 · 25 October 2026
+
+- An action whose controller reads the request in its constructor (directly, or through a service it injects, such as a date filter) now gets the input of its own call. Laravel keeps a route's controller once it is built, and listing the actions builds it from the chat request, so such an action answered with its defaults every time: a revenue question for this month got the year, a list asked for a larger page got the default one. Each call now builds the controller afresh, and the app's next request does not reuse it either.
+
 ## 0.7.0 · 22 October 2026
 
 - **Report a problem.** Under each answer the user can report what went wrong (the answer is wrong, it did not understand, the information is wrong, something else, or reasons of your own) and say what they expected. The report goes to the Reports section of the project's Assistant tab in the Rekhu account, linked to the conversation; no tables, routes or controllers of your own. It is built on the server from the conversation the package kept: the question, the answer, the conversation up to it and the actions the answer used with their input and outcome. What the actions returned is left out unless `reports.include_results` is on. Configure it under `reports` (reasons, comment length, an hourly limit per user, visitors). `Rekhu\Assistant\Events\AnswerReported` is dispatched for every report, for a copy of your own. When Rekhu cannot be reached the user is still thanked and the report is tried once more, on the queue when the app has one. `php artisan rekhu:assistant` says whether reports are on and whether Rekhu takes them.

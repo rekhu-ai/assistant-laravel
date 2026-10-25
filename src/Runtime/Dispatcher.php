@@ -76,6 +76,9 @@ class Dispatcher
                 return ['ok' => false, 'error' => 'this action could not be reached'];
             }
             $inner->setRouteResolver(fn () => $matched);
+            // Laravel keeps a route's controller once built: listing the actions built it from the chat request, and an
+            // earlier call from its own input. A controller that reads the request in its constructor needs this call's.
+            $matched->flushController();
             $middleware = array_filter($router->gatherRouteMiddleware($matched), function ($m) {
                 $class = is_string($m) ? explode(':', $m, 2)[0] : $m;
                 foreach (self::SKIP as $skip) {
@@ -115,6 +118,8 @@ class Dispatcher
             if ($stateless) {
                 $session->flush();
             }
+            // nor may the app's next request (Octane) get the controller built from this call
+            $route->flushController();
             app()->instance('request', $previous);
             Facade::clearResolvedInstance('request');
         }
