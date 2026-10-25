@@ -1,4 +1,4 @@
-/*! @rekhu/assistant-widget 0.3.0 · https://rekhu.com · generated from src/index.js, do not edit */
+/*! @rekhu/assistant-widget 0.4.0 · https://rekhu.com · generated from src/index.js, do not edit */
 (() => {
 /*
  * The Rekhu Assistant widget: a chat button and panel as <rekhu-assistant>, in its own shadow DOM so the app's CSS and
@@ -26,6 +26,8 @@ header button:hover { opacity: 1; background: rgba(255,255,255,.15); }
 .msg .table { overflow-x: auto; margin: 4px 0; } .msg table { border-collapse: collapse; font-size: 12px; width: 100%; } .msg th, .msg td { text-align: start; padding: 4px 8px; border-bottom: 1px solid var(--rekhu-border, #e5e7eb); white-space: nowrap; } .msg th { font-weight: 600; }
 .msg p { margin: 0 0 6px; } .msg p:last-child { margin: 0; } .msg ul, .msg ol { margin: 4px 0; padding-inline-start: 20px; }
 .msg a { color: var(--c); }
+.msg pre { margin: 4px 0; padding: 8px 10px; border-radius: 8px; background: rgba(127,127,127,.1); overflow-x: auto; font-size: 12px; white-space: pre; } .msg code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+.bot:has(.chart) { align-self: stretch; max-width: 100%; }
 .user { align-self: flex-end; background: var(--c); color: #fff; border-end-end-radius: 4px; }
 .user a { color: #fff; }
 .bot { align-self: flex-start; background: var(--rekhu-surface, #fff); border: 1px solid var(--rekhu-border, #e5e7eb); border-end-start-radius: 4px; }
@@ -37,6 +39,7 @@ header button:hover { opacity: 1; background: rgba(255,255,255,.15); }
 .card .title { font-weight: 600; }
 .card .detail { font-size: 12px; color: #4b5563; }
 .card.done { border-color: #a7f3d0; background: #ecfdf5; } .card.failed { border-color: #fecaca; background: #fef2f2; }
+.card .file { display: flex; align-items: center; gap: 6px; font-size: 13px; word-break: break-all; } .card .file-size { color: #6b7280; white-space: nowrap; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 .btn { border: 0; border-radius: 8px; padding: 7px 12px; font: inherit; font-weight: 600; cursor: pointer; background: var(--c); color: #fff; text-decoration: none; display: inline-block; }
 .btn.light { background: #f3f4f6; color: #374151; } .btn.danger { background: #dc2626; }
@@ -65,22 +68,154 @@ textarea:focus { border-color: var(--c); }
 `;
 
 
+const FILE_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+
 const ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
 
 const escape = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// a small, safe markdown: everything escaped first, then paragraphs, lists, tables, bold, italics, code and links to
-// http(s) or the app's own paths (never javascript:, data: or //other-host)
-const markdown = (text) => {
+// charts: an answer may hold a ```chart block with a JSON spec, drawn here as an inline SVG without dependencies
+const CHART_TYPES = ['bar', 'line', 'area', 'pie', 'donut'];
+// the first colour is the widget's accent (--c), so a chart matches the panel; the rest stay apart from it and each other
+const PALETTE = ['var(--c, #4f46e5)', '#0ea5e9', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#64748b'];
+
+const amount = (n, digits = 2) => { try { return new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(n); } catch { return String(n); } };
+const compact = (n) => { try { return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(n); } catch { return String(n); } };
+const clip = (s, max) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+
+// a few round steps from low to high (0, 250, 500 …), always including zero
+const ticks = (low, high) => {
+    if (low === high) high = low + 1;
+    const raw = (high - low) / 4;
+    const power = 10 ** Math.floor(Math.log10(raw));
+    const step = [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => s >= raw);
+    const out = [];
+    for (let v = Math.floor(low / step) * step; v <= Math.ceil(high / step) * step + step / 1e6; v += step) out.push(Number(v.toPrecision(12)));
+    return out;
+};
+
+// the spec as the chart needs it, or null when it cannot be drawn: an unknown type, no series, or a value that is not a number
+const chartSpec = (spec) => {
+    if (!spec || typeof spec !== 'object' || !CHART_TYPES.includes(spec.type)) return null;
+    const round = spec.type === 'pie' || spec.type === 'donut';
+    let series = (Array.isArray(spec.series) ? spec.series : []).slice(0, round ? 1 : PALETTE.length)
+        .map((s) => ({ name: String(s?.name ?? ''), data: Array.isArray(s?.data) ? s.data.slice(0, 100) : [] }));
+    if (!series.length || series.some((s) => !s.data.length || s.data.some((v) => typeof v !== 'number' || !Number.isFinite(v)))) return null;
+    const size = Math.max(...series.map((s) => s.data.length));
+    const labels = Array.from({ length: size }, (_, i) => String(Array.isArray(spec.labels) && spec.labels[i] != null ? spec.labels[i] : i + 1));
+    if (round && (series[0].data.some((v) => v < 0) || !series[0].data.some((v) => v > 0))) return null;
+    series = series.map((s, i) => ({ ...s, colour: PALETTE[i % PALETTE.length] }));
+    return { type: spec.type, round, title: spec.title == null ? '' : String(spec.title), unit: spec.unit == null ? '' : String(spec.unit), labels, series };
+};
+
+// bar, line and area: a value axis on the left, the labels along the bottom
+const plot = (c) => {
+    const W = 400, H = 220, left = 44, right = 8, top = c.unit ? 22 : 12, bottom = 28;
+    const values = c.series.flatMap((s) => s.data);
+    const axis = ticks(Math.min(0, ...values), Math.max(0, ...values));
+    const low = axis[0], high = axis[axis.length - 1];
+    const y = (v) => top + (1 - (v - low) / (high - low)) * (H - top - bottom);
+    const band = (W - left - right) / c.labels.length;
+    const x = (i) => left + band * (i + 0.5);
+    const tip = (i, s, v) => `<title>${escape(c.labels[i])}${s.name ? ` · ${escape(s.name)}` : ''}: ${escape(amount(v))}${c.unit ? ` ${escape(c.unit)}` : ''}</title>`;
+    const few = c.labels.length * (c.type === 'bar' ? c.series.length : 1) <= 12;
+    const out = [];
+    if (c.unit) out.push(`<text x="${left - 6}" y="10" text-anchor="end" font-size="10" fill="currentColor" fill-opacity=".7">${escape(c.unit)}</text>`);
+    for (const v of axis) {
+        out.push(`<line x1="${left}" x2="${W - right}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="currentColor" stroke-opacity="${v === 0 ? '.35' : '.12'}"/>`);
+        out.push(`<text x="${left - 6}" y="${y(v).toFixed(1)}" dy=".32em" text-anchor="end" font-size="10" fill="currentColor" fill-opacity=".7">${escape(compact(v))}</text>`);
+    }
+    // with many labels, every second (or third …) one, so they do not run into each other
+    const every = Math.ceil(c.labels.length / 10);
+    c.labels.forEach((label, i) => {
+        if (i % every === 0) out.push(`<text x="${x(i).toFixed(1)}" y="${H - bottom + 16}" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity=".8">${escape(clip(label, Math.max(4, Math.floor(band * every / 6))))}</text>`);
+    });
+    const zero = y(Math.max(low, Math.min(0, high)));
+    if (c.type === 'bar') {
+        const group = band * 0.72, width = group / c.series.length;
+        c.series.forEach((s, j) => s.data.forEach((v, i) => {
+            const bx = x(i) - group / 2 + j * width, by = Math.min(y(v), zero), height = Math.max(Math.abs(zero - y(v)), v === 0 ? 0 : 1);
+            out.push(`<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${Math.max(width - 2, 1).toFixed(1)}" height="${height.toFixed(1)}" rx="${width > 6 ? 2 : 0}" style="fill:${s.colour}">${tip(i, s, v)}</rect>`);
+            if (few) out.push(`<text x="${(bx + (width - 2) / 2).toFixed(1)}" y="${(v < 0 ? by + height + 10 : by - 3).toFixed(1)}" text-anchor="middle" font-size="9" fill="currentColor">${escape(compact(v))}</text>`);
+        }));
+    } else {
+        c.series.forEach((s) => {
+            const points = s.data.map((v, i) => [x(i).toFixed(1), y(v).toFixed(1)]);
+            const line = points.map(([px, py], i) => `${i ? 'L' : 'M'}${px},${py}`).join(' ');
+            if (c.type === 'area') out.push(`<path d="${line} L${points[points.length - 1][0]},${zero.toFixed(1)} L${points[0][0]},${zero.toFixed(1)} Z" style="fill:${s.colour}" fill-opacity=".18"/>`);
+            out.push(`<path d="${line}" fill="none" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" style="stroke:${s.colour}"/>`);
+            s.data.forEach((v, i) => {
+                out.push(`<circle cx="${points[i][0]}" cy="${points[i][1]}" r="2.5" style="fill:${s.colour}">${tip(i, s, v)}</circle>`);
+                if (few && c.series.length === 1) out.push(`<text x="${points[i][0]}" y="${(Number(points[i][1]) - 6).toFixed(1)}" text-anchor="middle" font-size="9" fill="currentColor">${escape(compact(v))}</text>`);
+            });
+        });
+    }
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" dir="ltr" role="img" aria-label="${escape(c.title)}" style="direction:ltr;display:block;max-width:100%;height:auto;overflow:visible">${out.join('')}</svg>`;
+};
+
+// pie and donut: the first series, a slice per label with its share on it
+const round = (c) => {
+    const S = 200, cx = 100, cy = 100, r = 96, inner = c.type === 'donut' ? 58 : 0;
+    const data = c.series[0].data;
+    const total = data.reduce((a, v) => a + v, 0);
+    const at = (angle, radius) => `${(cx + radius * Math.cos(angle)).toFixed(2)},${(cy + radius * Math.sin(angle)).toFixed(2)}`;
+    const out = [];
+    let start = -Math.PI / 2;
+    data.forEach((v, i) => {
+        if (v <= 0) return;
+        // a slice of the whole circle stops just short of it, so the arc has two ends
+        const end = start + Math.min(v / total, 0.99999) * 2 * Math.PI;
+        const large = end - start > Math.PI ? 1 : 0;
+        const colour = PALETTE[i % PALETTE.length];
+        const d = inner
+            ? `M${at(start, r)} A${r},${r} 0 ${large} 1 ${at(end, r)} L${at(end, inner)} A${inner},${inner} 0 ${large} 0 ${at(start, inner)} Z`
+            : `M${cx},${cy} L${at(start, r)} A${r},${r} 0 ${large} 1 ${at(end, r)} Z`;
+        out.push(`<path d="${d}" stroke="#fff" stroke-width="1" style="fill:${colour}"><title>${escape(c.labels[i])}: ${escape(amount(v))}${c.unit ? ` ${escape(c.unit)}` : ''} (${escape(amount((v / total) * 100, 1))}%)</title></path>`);
+        if (v / total >= 0.06) {
+            const middle = (start + end) / 2, [lx, ly] = at(middle, inner ? (r + inner) / 2 : r * 0.62).split(',');
+            out.push(`<text x="${lx}" y="${ly}" dy=".32em" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">${escape(amount((v / total) * 100, 0))}%</text>`);
+        }
+        start = end;
+    });
+    if (inner) out.push(`<text x="${cx}" y="${cy}" dy=".32em" text-anchor="middle" font-size="14" font-weight="600" fill="currentColor">${escape(compact(total))}${c.unit ? ` ${escape(c.unit)}` : ''}</text>`);
+    return `<svg viewBox="0 0 ${S} ${S}" width="100%" dir="ltr" role="img" aria-label="${escape(c.title)}" style="direction:ltr;display:block;max-width:220px;height:auto;margin:0 auto">${out.join('')}</svg>`;
+};
+
+/**
+ * A chart spec ({ type, title, unit, labels, series: [{ name, data }] }) as safe HTML: a <figure> with the title, the
+ * SVG and a legend; '' when the spec cannot be drawn. The SVG reads left to right in any language; the title and the
+ * legend follow the text around them, so they read right to left in an Arabic chat.
+ */
+function renderChart(spec) {
+    const c = chartSpec(spec);
+    if (!c) return '';
+    const items = c.round
+        ? c.labels.map((label, i) => [PALETTE[i % PALETTE.length], label, `${amount(c.series[0].data[i] ?? 0)}${c.unit ? ` ${c.unit}` : ''}`])
+        : c.series.length > 1 ? c.series.map((s) => [s.colour, s.name, '']) : [];
+    const legend = items.length
+        ? `<ul class="chart-legend" style="list-style:none;margin:6px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px">${items.map(([colour, name, value]) => `<li style="display:flex;align-items:center;gap:6px"><span style="flex:none;width:10px;height:10px;border-radius:2px;background:${colour}"></span>${escape(name)}${value ? ` <span style="opacity:.7">${escape(value)}</span>` : ''}</li>`).join('')}</ul>`
+        : '';
+    const title = c.title ? `<figcaption style="font-weight:600;margin:0 0 4px">${escape(c.title)}</figcaption>` : '';
+    return `<figure class="chart" part="chart" style="margin:6px 0;max-width:100%">${title}${c.round ? round(c) : plot(c)}${legend}</figure>`;
+}
+
+// a chart block whose closing ``` has not arrived yet: room for the chart, not the JSON as it streams in
+const CHART_PENDING = '<figure class="chart pending" part="chart" aria-busy="true" style="margin:6px 0;height:120px;border-radius:8px;background:rgba(127,127,127,.08)"></figure>';
+
+// a small, safe markdown: everything escaped first, then paragraphs, lists, tables, fenced code and charts, bold,
+// italics, code and links to http(s) or the app's own paths (never javascript:, data: or //other-host)
+const render = (text, target) => {
     const inline = (s) => escape(s)
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
         .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/(?!\/))[^\s)]+)\)/g, '<a href="$2" target="_top" rel="noopener">$1</a>');
+        .replace(/\[([^\]]+)\]\(((?:https?:\/\/|\/(?!\/))[^\s)]+)\)/g, `<a href="$2" target="${target}" rel="noopener">$1</a>`);
     const out = [];
     let list = null;
     let table = null;
+    let code = null;
     const row = (line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
+    const closeList = () => { if (list) { out.push(`</${list.kind}>`); list = null; } };
     const closeTable = () => {
         if (!table) return;
         const [head, ...body] = table;
@@ -88,10 +223,36 @@ const markdown = (text) => {
             + body.map((r) => '<tr>' + head.map((_, i) => `<td>${inline(r[i] || '')}</td>`).join('') + '</tr>').join('') + '</tbody></table></div>');
         table = null;
     };
+    // a fenced block; "open" when the text ends before its closing ``` (an answer still streaming)
+    const closeCode = (open = false) => {
+        const body = code.lines.join('\n');
+        if (code.lang === 'chart') {
+            let chart = '';
+            try { chart = renderChart(JSON.parse(body)); } catch { /* not JSON (yet): drawn as code, or waited for */ }
+            if (chart) out.push(chart);
+            else if (open) out.push(CHART_PENDING);
+            else out.push(`<pre><code>${escape(body)}</code></pre>`);
+        } else if (!open || code.lines.length) {
+            out.push(`<pre><code${code.lang ? ` class="language-${escape(code.lang)}"` : ''}>${escape(body)}</code></pre>`);
+        }
+        code = null;
+    };
     for (const line of String(text).split('\n')) {
+        if (code) {
+            if (/^\s*```\s*$/.test(line)) closeCode();
+            else code.lines.push(line);
+            continue;
+        }
+        const fence = line.match(/^\s*```\s*([\w-]*)\s*$/);
+        if (fence) {
+            closeList();
+            closeTable();
+            code = { lang: fence[1].toLowerCase(), lines: [] };
+            continue;
+        }
         // a table: rows between pipes; the |---|---| line under the header only separates
         if (/^\s*\|.*\|\s*$/.test(line)) {
-            if (list) { out.push(`</${list.kind}>`); list = null; }
+            closeList();
             if (/^\s*\|[\s:|-]+\|\s*$/.test(line) && /-/.test(line)) continue;
             (table = table || []).push(row(line));
             continue;
@@ -100,17 +261,29 @@ const markdown = (text) => {
         const item = line.match(/^\s*(?:[-*]|\d+\.)\s+(.*)$/);
         if (item) {
             const kind = /^\s*\d+\./.test(line) ? 'ol' : 'ul';
-            if (!list || list.kind !== kind) { if (list) out.push(`</${list.kind}>`); list = { kind }; out.push(`<${kind}>`); }
+            if (!list || list.kind !== kind) { closeList(); list = { kind }; out.push(`<${kind}>`); }
             out.push(`<li>${inline(item[1])}</li>`);
             continue;
         }
-        if (list) { out.push(`</${list.kind}>`); list = null; }
+        closeList();
         if (line.trim()) out.push(`<p>${inline(line)}</p>`);
     }
-    if (list) out.push(`</${list.kind}>`);
+    if (code) closeCode(true);
+    closeList();
     closeTable();
     return out.join('');
 };
+
+/** The widget's markdown as safe HTML, charts included; links open in the same window (the widget routes the app's own). */
+const markdown = (text) => render(text, '_top');
+
+/**
+ * An answer as safe HTML, with everything the widget draws inside one: paragraphs, lists, tables, code, links and
+ * charts. For a chat screen of your own; links open in a new tab. Call it again on the whole text as it streams.
+ */
+function renderMessage(text) {
+    return render(text, '_blank');
+}
 
 // the widget's own words, in the user's language (the "locale" option, else the page's lang, else the browser's);
 // the "texts" option overrides any of them
@@ -125,6 +298,7 @@ const TEXTS = {
         confirmed: 'Confirmed', cancelled: 'Cancel that',
         report: 'Report a problem', reportTitle: 'What went wrong?', reportPlaceholder: 'What did you expect instead? (optional)',
         reportSend: 'Send report', reportThanks: 'Thanks, we will look into it.', reportFailed: 'Could not send the report.',
+        download: 'Download',
     },
     ar: {
         signedOut: 'انتهت جلستك. أعد تحميل الصفحة وسجّل الدخول من جديد.',
@@ -136,6 +310,7 @@ const TEXTS = {
         confirmed: 'تم التأكيد', cancelled: 'ألغِ ذلك',
         report: 'الإبلاغ عن مشكلة', reportTitle: 'ما الخطأ؟', reportPlaceholder: 'ماذا كنت تتوقع بدلاً من ذلك؟ (اختياري)',
         reportSend: 'إرسال البلاغ', reportThanks: 'شكراً، سنراجع ذلك.', reportFailed: 'تعذّر إرسال البلاغ.',
+        download: 'تنزيل',
     },
     nl: {
         signedOut: 'Je sessie is verlopen. Laad de pagina opnieuw en log weer in.',
@@ -147,6 +322,7 @@ const TEXTS = {
         confirmed: 'Bevestigd', cancelled: 'Annuleer dat',
         report: 'Meld een probleem', reportTitle: 'Wat ging er mis?', reportPlaceholder: 'Wat had je verwacht? (optioneel)',
         reportSend: 'Verstuur melding', reportThanks: 'Bedankt, we kijken ernaar.', reportFailed: 'De melding kon niet worden verstuurd.',
+        download: 'Downloaden',
     },
 };
 
@@ -268,6 +444,16 @@ function createClient(options = {}) {
     return client;
 }
 
+// a file size as people read it: 820 B, 12 KB, 3.4 MB; '' when there is none
+const bytes = (size) => {
+    let n = Number(size);
+    if (size == null || size === '' || !Number.isFinite(n) || n < 0) return '';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let i = 0;
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i += 1; }
+    return `${i === 0 ? n : n < 10 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
+};
+
 const build = () => class RekhuAssistantElement extends HTMLElement {
     /** Options set from JavaScript (mount() or element.configure()) win over the data-settings attribute. */
     configure(options = {}) {
@@ -319,7 +505,8 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         // every link in the chat (page cards, links in answers) goes through the app's router when it has one
         this.log.addEventListener('click', (e) => {
             const link = e.composedPath().find((el) => el instanceof HTMLAnchorElement);
-            if (link && this.go(link.getAttribute('href'))) e.preventDefault();
+            // a download is the browser's to fetch, never a page for the router
+            if (link && !link.hasAttribute('download') && this.go(link.getAttribute('href'))) e.preventDefault();
         });
         this.greet();
         // the conversation so far, and the server's greeting when the app gave none here
@@ -536,6 +723,15 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
                 if (typeof this.settings.onAction === 'function') this.settings.onAction(event);
             }
         }
+        if (event.kind === 'file') {
+            // a signed link the server made for this user; only http(s) or the app's own paths become a link
+            const href = /^(?:https?:\/\/|\/(?!\/))/i.test(String(event.url || '')) ? String(event.url) : null;
+            const size = bytes(event.size);
+            const name = String(event.name || '');
+            const el = this.add('card file', `${event.title ? `<div class="title">${escape(event.title)}</div>` : ''}<div class="file">${FILE_ICON}<span>${escape(name)}</span>${size ? `<span class="file-size">${escape(size)}</span>` : ''}</div>`
+                + (href ? `<div class="row"><a class="btn" part="file-link" href="${escape(href)}" download="${escape(name)}" target="_blank" rel="noopener">${escape(this.t.download)}</a></div>` : ''));
+            el.setAttribute('part', 'card file');
+        }
         if (event.kind === 'confirm') {
             const rows = Object.entries(event.input || {}).map(([k, v]) => `<dt>${escape(k.replace(/_/g, ' '))}</dt><dd>${escape(typeof v === 'object' ? JSON.stringify(v) : v)}</dd>`).join('');
             const el = this.add('card', `<div class="title">${escape(event.title)}</div>${rows ? `<dl>${rows}</dl>` : ''}<div class="row"><button class="btn ${event.danger ? 'danger' : ''}" data-yes>${escape(this.t.confirm)}</button><button class="btn light" data-no>${escape(this.t.cancel)}</button></div>`);
@@ -574,5 +770,5 @@ function mount(options = {}) {
 }
 
 define();
-window.RekhuAssistant = { mount, define, createClient, markdown, PROTOCOL };
+window.RekhuAssistant = { mount, define, createClient, markdown, renderMessage, renderChart, PROTOCOL };
 })();

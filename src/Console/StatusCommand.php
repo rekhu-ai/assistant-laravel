@@ -55,7 +55,7 @@ class StatusCommand extends Command
         $this->newLine();
         $this->line('<options=bold>Actions</> ('.count($actions).')'.($user ? '' : ' — all of them; give --user to see one user\'s'));
         $this->table(['name', 'route', 'from', 'confirm', 'input', 'description'], array_map(fn ($a) => [
-            $a['name'], $a['verb'].' /'.$a['uri'], $a['source'], $a['confirm'] ? 'yes' : '',
+            $a['name'], isset($a['class']) ? $a['class'] : $a['verb'].' /'.$a['uri'], $a['source'], $a['confirm'] ? 'yes' : '',
             implode(', ', array_keys((array) $a['schema']['properties'])), Str::limit($a['description'], 60),
         ], array_values($actions)));
 

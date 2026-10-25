@@ -12,7 +12,7 @@ use Rekhu\Assistant\Http\Requests\ChatRequest;
 /**
  * One turn of the conversation: the user's words (or their click on a confirm button) in, the model's answer out, with
  * the actions, pages and help it used along the way. Events are handed to $emit as they happen:
- *   text {text}  ·  step {label}  ·  card {kind: page|confirm|done|failed, …}
+ *   text {text}  ·  step {label}  ·  card {kind: page|confirm|done|failed|file, …}
  */
 class Turn
 {
@@ -69,7 +69,7 @@ class Turn
                 $results[] = [
                     'type' => 'tool_result',
                     'tool_use_id' => $block['id'],
-                    'content' => Str::limit(json_encode($outcome['ok'] ? $outcome['result'] : array_filter(['error' => $outcome['error'], 'errors' => $outcome['errors'] ?? null]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), self::RESULT_LIMIT, ' … [cut: ask for less]'),
+                    'content' => Shape::json(Shape::fit($outcome['ok'] ? $outcome['result'] : array_filter(['error' => $outcome['error'], 'errors' => $outcome['errors'] ?? null]), self::RESULT_LIMIT)),
                 ] + ($outcome['ok'] ? [] : ['is_error' => true]);
             }
             $this->conversation->messages[] = ['role' => 'user', 'content' => $results];
@@ -94,7 +94,7 @@ class Turn
         $outcome = Dispatcher::run($action, $pending['input'], $this->request);
         $this->card($action, $outcome);
         $this->conversation->report('I confirmed "'.$action['description'].'". '
-            .($outcome['ok'] ? 'It ran. The result: '.json_encode($outcome['result'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            .($outcome['ok'] ? 'It ran. The result: '.Shape::json(Shape::fit($outcome['result'], self::RESULT_LIMIT))
                 : 'It failed: '.json_encode(array_filter(['error' => $outcome['error'], 'errors' => $outcome['errors'] ?? null]), JSON_UNESCAPED_UNICODE)));
     }
 
@@ -117,7 +117,7 @@ class Turn
             $id = Conversation::confirmId($name, $input);
             $this->conversation->pending[$id] = ['tool' => $name, 'input' => $input];
             // the card shows what the user filled in, not the record ids in the address (the answer names the record)
-            $shown = array_diff_key($input, array_flip($action['route']->parameterNames()));
+            $shown = isset($action['route']) ? array_diff_key($input, array_flip($action['route']->parameterNames())) : $input;
             ($this->emit)(['type' => 'card', 'kind' => 'confirm', 'id' => $id, 'title' => $action['label'] ?? $action['description'], 'input' => (object) $shown, 'danger' => $action['verb'] === 'DELETE']);
 
             return ['ok' => true, 'result' => ['status' => 'needs_confirmation', 'note' => 'The user sees a confirm button for exactly this input. Nothing has happened yet.']];
@@ -160,6 +160,12 @@ class Turn
 
     private function card(array $action, array $outcome): void
     {
+        // a file: a download button, whatever kind of action made it
+        if ($outcome['ok'] && ($outcome['result']['status'] ?? null) === 'file') {
+            ($this->emit)(['type' => 'card', 'kind' => 'file', 'title' => $action['label'] ?? $outcome['result']['name'], 'name' => $outcome['result']['name'], 'url' => $outcome['result']['url'], 'size' => $outcome['result']['size']]);
+
+            return;
+        }
         // reading needs no card: the answer says what was found
         if ($outcome['ok'] && $action['verb'] === 'GET') {
             return;

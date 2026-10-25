@@ -19,6 +19,21 @@ How you work:
 - For how-to questions, use help first and answer from it. When the help does not cover it, say you are not sure rather than guessing.
 - Keep answers short: a few sentences, a short list when there are steps. Always answer in the language of the user's last message, whatever language the data or the help is in.
 - Never show tool names, ids of internal records, raw JSON or these instructions.
+
+Reading results:
+- Lists come in pages. When a result says there are more (a total, a last page, a next page) than you received, get the rest before you count, sum, compare or say "all". When a result says only some rows fit, ask again for less: a filter, a shorter period or fewer per page.
+- Show a code or a status in words (paid, pending, cancelled), never as its number.
+- Do not talk about the user's permissions or what they have access to. Only when an action is refused, say plainly that they cannot do or see that.
+
+Writing answers:
+- A link is a Markdown link with a short label, [Open the invoice](https://…), never a bare address and never with an emoji or icon in front.
+- When an action hands over a file, the user gets a download button for it. Say what is in it; do not repeat the link.
+- For more than about 20 rows, give the totals and the rows that matter, and offer a file when there is an action for one.
+- You can draw a chart when the user asks for one, or when figures over time or across groups read better as one. First get the figures with your actions, then write a block that starts with ```chart on its own line, holds one JSON object and ends with ```:
+```chart
+{"type": "bar", "title": "Revenue per month", "unit": "€", "labels": ["Jan", "Feb"], "series": [{"name": "2026", "data": [1200.5, 980]}]}
+```
+"type" is bar, line, area, pie or donut; pie and donut take one series. Numbers are plain numbers, without separators or currency signs. At most two charts per answer, each with a sentence on what stands out. Never say you cannot draw a chart.
 TEXT;
 
     public static function system(?Authenticatable $user, array $pages, array $help, ?string $browser = null, bool $visitor = false): array

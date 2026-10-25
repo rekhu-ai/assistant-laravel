@@ -10,9 +10,10 @@ use Rekhu\Assistant\Attributes\Tool;
 use Rekhu\Assistant\RekhuAssistant;
 
 /**
- * The actions of the app, as the user may use them: every route whose controller method carries #[Tool], and the routes
+ * The actions of the app, as the user may use them: every route whose controller method carries #[Tool], the routes
  * the config adds (actions.include, by route name or "VERB uri"), minus the routes the config blocks (actions.exclude,
- * name or uri patterns), whatever their attribute says.
+ * name or uri patterns), whatever their attribute says; and the Tool classes, which the user is offered when their
+ * authorize() says so.
  */
 class Actions
 {
@@ -42,8 +43,30 @@ class Actions
                 'verb' => $verb,
                 'uri' => $route->uri(),
                 'route' => $route,
-                'schema' => Schema::of($route, $tool->rules, $user),
+                'schema' => Schema::of($route, $tool->rules, $user, $tool->inputs),
+                'fields' => $tool->fields,
                 'source' => $source,
+            ];
+        }
+
+        foreach (Tools::classes() as $class) {
+            $tool = app($class);
+            $name = Str::limit(preg_replace('/[^a-zA-Z0-9_-]+/', '_', $tool->name()), 60, '');
+            if (Str::is($exclude, $name) || ! $all && ! ($user ? $tool->authorize($user) : $tool->forGuests() && $tool->authorize(null))) {
+                continue;
+            }
+            $out[$name] = [
+                'name' => $name,
+                'description' => $tool->description(),
+                'label' => RekhuAssistant::translated($tool->label()),
+                'confirm' => $tool->confirms(),
+                // reading needs no card; a tool that changes something is confirmed first and gets one
+                'verb' => $tool->confirms() ? 'POST' : 'GET',
+                'uri' => class_basename($class),
+                'class' => $class,
+                'schema' => Schema::of(null, $tool->rules(), $user, $tool->inputs()),
+                'fields' => $tool->fields(),
+                'source' => 'class',
             ];
         }
 
@@ -62,9 +85,11 @@ class Actions
                     description: (string) $entry['description'],
                     name: $entry['name'] ?? null,
                     confirm: $entry['confirm'] ?? null,
-                    rules: (array) ($entry['rules'] ?? []),
+                    rules: is_string($entry['rules'] ?? null) ? $entry['rules'] : (array) ($entry['rules'] ?? []),
                     guests: (bool) ($entry['guests'] ?? false),
                     label: $entry['label'] ?? null,
+                    inputs: (array) ($entry['inputs'] ?? []),
+                    fields: (array) ($entry['fields'] ?? []),
                 ), 'config'];
             }
         }

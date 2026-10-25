@@ -4,6 +4,8 @@ namespace Rekhu\Assistant\Http;
 
 use Illuminate\Support\Facades\Route;
 use Rekhu\Assistant\Http\Controllers\ChatController;
+use Rekhu\Assistant\Http\Controllers\FileController;
+use Rekhu\Assistant\Http\Middleware\EnsureAccess;
 use Rekhu\Assistant\Http\Middleware\EnsureProtocol;
 use Rekhu\Assistant\Http\Middleware\IdentifyVisitor;
 use Rekhu\Assistant\Http\Middleware\LimitVisitors;
@@ -31,8 +33,11 @@ class AssistantRoutes
             ]))->name('rekhu.assistant.widget');
         }
 
-        // the chat: the app's own middleware decides who may talk to it
-        Route::middleware([EnsureProtocol::class, ...(array) ($options['middleware'] ?? config('rekhu-assistant.middleware', ['web', 'auth']))])
+        // a file an action handed over: the signature and its expiry stand in for the login, so it opens from any front end
+        Route::get($prefix.'files/{file}', FileController::class)->middleware(['signed', 'throttle:30,1'])->name('rekhu.assistant.file');
+
+        // the chat: the app's own middleware decides who may talk to it, and RekhuAssistant::accessUsing() after it
+        Route::middleware([EnsureProtocol::class, ...(array) ($options['middleware'] ?? config('rekhu-assistant.middleware', ['web', 'auth'])), EnsureAccess::class])
             ->prefix($prefix.'chat')
             ->name('rekhu.assistant.')
             ->group(function () {

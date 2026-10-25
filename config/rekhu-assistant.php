@@ -69,6 +69,21 @@ return [
         ],
     ],
 
+    // Actions written for the assistant only (php artisan make:assistant-tool): a summary, a short list, a figure, with
+    // no route of their own. Every Tool class in this folder is offered, as its authorize() allows.
+    'tools' => [
+        'path' => null,                     // null: app/Assistant/Tools
+        'namespace' => null,                // null: App\Assistant\Tools
+    ],
+
+    // Files an action hands over (an export, a PDF): the user gets a download button with a signed link, valid this long.
+    // They are kept in the cache, which all your servers share; null is the default cache store.
+    'files' => [
+        'minutes' => 15,
+        'max_mb' => 20,
+        'store' => env('REKHU_ASSISTANT_FILES_STORE'),
+    ],
+
     // Pages it may open: every named GET route, minus these name patterns, minus routes the user may not open.
     // A front end of its own (Nuxt, Next, a mobile app): its pages, opened at its own address. Each page is
     // ['path' => '/orders/{order}', 'label' => 'Order', 'help' => 'What it shows', 'can' => 'a gate, optional'];

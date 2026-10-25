@@ -1,0 +1,35 @@
+<?php
+
+namespace {{ namespace }};
+
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Http\Request;
+use Rekhu\Assistant\Tool;
+
+class {{ class }} extends Tool
+{
+    // What it does, for the assistant: what comes back, what the input means, when to use it. Never shown to users.
+    protected string $description = '';
+
+    // The input, as validation rules; $inputs says in a few words what each one means.
+    protected array $rules = [
+        // 'search' => 'nullable|string|max:100',
+    ];
+
+    protected array $inputs = [
+        // 'search' => 'Matches the name',
+    ];
+
+    // What the user reads while it runs.
+    protected string|array|null $label = null;
+
+    public function authorize(?Authenticatable $user): bool
+    {
+        return $user !== null;
+    }
+
+    public function handle(Request $request): array
+    {
+        return [];
+    }
+}

@@ -2,6 +2,18 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.8.0 · 25 October 2026
+
+- **Tool classes.** An action written for the assistant only, without a route or a controller: a summary, a short list, a figure across tables (who has not paid but still comes, today's attendance of one class). `php artisan make:assistant-tool UnpaidAttending` makes one in `app/Assistant/Tools`, where every class is offered by itself to the users its `authorize()` allows. `handle()` gets the validated input as the request and returns an array, a model or collection, a JSON resource or a download. `RekhuAssistant::tools([...])` adds classes kept elsewhere; `tools.path` and `tools.namespace` move the folder.
+- **Files.** An action that returns a download (`download()`, `streamDownload()`, Laravel Excel, a PDF) gives the user a Download button in the chat, with no signed route of your own. The file is kept in the cache, which all servers share, for `files.minutes` (15) and at most `files.max_mb` (20 MB); the link is signed and expires, and works from a front end that signs in with a token. The stream gets a `file` card. Widget 0.4.0 shows it.
+- **`inputs` and `fields`.** `#[Tool(inputs: ['status' => 'paid, pending or failed'])]` says what an input means, so the description can stay short. `fields: ['id', 'name', 'address.city']` keeps only those fields of every record the action returns, so a resource made for a page needs no second, shorter route. Both work in `actions.include` and on Tool classes.
+- **Shared rules.** `rules` takes a class too: a form request, or any class with `rules()`, so a list and its export share one set of filters. An input validated with `Rule::enum()` is offered with its values and what they mean (`308 paid`), from each case's `label()` or its name.
+- **Results that fit.** A long result is no longer cut off in the middle of its JSON, which could lose its paging and make the assistant believe it had every row. A paginator's links are left out, and a list too long to read loses its last rows, with a note on how many it got.
+- **`RekhuAssistant::accessUsing()`.** One rule for who may use the chat, beside its middleware; refused users get a 403 with a message in their language.
+- **Answers.** The assistant reads lists to the end before it counts or sums, shows statuses in words, writes links as short Markdown labels, does not talk about the user's permissions, offers a file for long lists and draws charts (a ```` ```chart ```` block that widget 0.4.0 draws and `renderMessage()` renders for a chat of your own). Rules like these no longer need to be in `instructions`.
+- An action's request gets the chat's user even when the app's auth guard has none yet (a console command, a test).
+- Widget 0.4.0: the file card, charts, and `renderMessage()` and `renderChart()` for a chat of your own.
+
 ## 0.7.1 · 25 October 2026
 
 - An action whose controller reads the request in its constructor (directly, or through a service it injects, such as a date filter) now gets the input of its own call. Laravel keeps a route's controller once it is built, and listing the actions builds it from the chat request, so such an action answered with its defaults every time: a revenue question for this month got the year, a list asked for a larger page got the default one. Each call now builds the controller afresh, and the app's next request does not reuse it either.

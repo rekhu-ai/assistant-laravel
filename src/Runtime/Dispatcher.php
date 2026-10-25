@@ -6,19 +6,25 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Contracts\Session\Session;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Pipeline\Pipeline;
+use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Facade;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use JsonSerializable;
 use Rekhu\Assistant\Catalogue\Routes;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
@@ -26,6 +32,8 @@ use Throwable;
  * Performs an action as the signed-in user, in this same request: the route is matched like a form post, its middleware
  * runs (auth, can:, bindings, throttles, the app's own), then the controller. The session and cookie layers are skipped
  * because the user's session is already open and shared, so the user stays signed in and nothing is sent twice.
+ * A Tool class has no route: its input is validated against its rules and its handle() is called. Either way a download
+ * becomes a file the user gets a button for, and only the fields the action asks for are kept.
  */
 class Dispatcher
 {
@@ -39,7 +47,16 @@ class Dispatcher
     /** ['ok' => true, 'result' => …] or ['ok' => false, 'error' => …, 'errors'?] */
     public static function run(array $action, array $input, Request $outer): array
     {
-        $route = $action['route'];
+        $outcome = isset($action['class']) ? self::tool($action['class'], $input, $outer) : self::route($action['route'], $input, $outer);
+        if ($outcome['ok'] && ($action['fields'] ?? []) && ($outcome['result']['status'] ?? null) !== 'file') {
+            $outcome['result'] = Shape::pick($outcome['result'], $action['fields']);
+        }
+
+        return $outcome;
+    }
+
+    private static function route(Route $route, array $input, Request $outer): array
+    {
         $parameters = array_intersect_key($input, array_flip($route->parameterNames()));
         $body = array_diff_key($input, $parameters);
         $verb = Routes::verb($route);
@@ -70,6 +87,8 @@ class Dispatcher
         $before = array_map(fn ($k) => $session->get($k), $flash);
         app()->instance('request', $inner);
         Facade::clearResolvedInstance('request');
+        // binding the request makes Laravel point its user at the auth guard again; the action runs as the chat's user
+        $inner->setUserResolver($outer->getUserResolver());
         try {
             $matched = $router->getRoutes()->match($inner);
             if ($matched->uri() !== $route->uri()) {
@@ -93,27 +112,8 @@ class Dispatcher
                 ->then(fn ($request) => Router::toResponse($request, $matched->run()));
 
             return self::answer($response, $session, $flash, $before);
-        } catch (ValidationException $e) {
-            return ['ok' => false, 'error' => 'the input was refused', 'errors' => $e->errors()];
-        } catch (AuthorizationException) {
-            return ['ok' => false, 'error' => 'the user may not do this'];
-        } catch (AuthenticationException) {
-            return ['ok' => false, 'error' => 'the user is not signed in'];
-        } catch (ModelNotFoundException) {
-            return ['ok' => false, 'error' => 'that record does not exist, or the user cannot see it'];
-        } catch (HttpExceptionInterface $e) {
-            $status = $e->getStatusCode();
-
-            return ['ok' => false, 'error' => match (true) {
-                $status === 403 => 'the user may not do this',
-                $status === 404 => 'that record does not exist, or the user cannot see it',
-                $status === 429 => 'too many attempts; try again later',
-                default => 'the action failed ('.$status.')'.($e->getMessage() ? ': '.$e->getMessage() : ''),
-            }];
         } catch (Throwable $e) {
-            report($e);
-
-            return ['ok' => false, 'error' => 'the action failed in the app; the error is in its log'];
+            return self::failure($e);
         } finally {
             if ($stateless) {
                 $session->flush();
@@ -125,8 +125,78 @@ class Dispatcher
         }
     }
 
-    /** What the action answered: JSON as is, a redirect as where it went and the message it flashed. */
-    private static function answer($response, Session $session, array $flash, array $before): array
+    /** A Tool class: a fresh instance for this call, its input validated, then handle() with the input as the request. */
+    private static function tool(string $class, array $input, Request $outer): array
+    {
+        $server = array_merge($outer->server->all(), ['HTTP_ACCEPT' => 'application/json', 'HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest']);
+        unset($server['CONTENT_LENGTH'], $server['HTTP_CONTENT_LENGTH'], $server['CONTENT_TYPE']);
+        $inner = Request::create($outer->url(), 'POST', $input, [], [], $server);
+        $inner->setUserResolver($outer->getUserResolver());
+        if ($outer->hasSession()) {
+            $inner->setLaravelSession($outer->session());
+        }
+        $previous = app('request');
+        app()->instance('request', $inner);
+        Facade::clearResolvedInstance('request');
+        $inner->setUserResolver($outer->getUserResolver());
+        try {
+            $tool = app($class);
+            Validator::make($input, $tool->rules())->validate();
+            $value = app()->call([$tool, 'handle'], ['request' => $inner]);
+            if ($value instanceof JsonResource) {
+                $value = $value->response($inner);
+            }
+            if ($value instanceof Response) {
+                return self::answer($value, null, [], []);
+            }
+
+            return ['ok' => true, 'result' => match (true) {
+                $value === null => ['status' => 'done'],
+                $value instanceof Arrayable => $value->toArray(),
+                $value instanceof JsonSerializable => $value->jsonSerialize(),
+                is_array($value) => $value,
+                default => ['result' => $value],
+            }];
+        } catch (Throwable $e) {
+            return self::failure($e);
+        } finally {
+            app()->instance('request', $previous);
+            Facade::clearResolvedInstance('request');
+        }
+    }
+
+    /** What the model is told when an action fails: why, in words it can pass on, never the app's internals. */
+    private static function failure(Throwable $e): array
+    {
+        if ($e instanceof ValidationException) {
+            return ['ok' => false, 'error' => 'the input was refused', 'errors' => $e->errors()];
+        }
+        if ($e instanceof AuthorizationException) {
+            return ['ok' => false, 'error' => 'the user may not do this'];
+        }
+        if ($e instanceof AuthenticationException) {
+            return ['ok' => false, 'error' => 'the user is not signed in'];
+        }
+        if ($e instanceof ModelNotFoundException) {
+            return ['ok' => false, 'error' => 'that record does not exist, or the user cannot see it'];
+        }
+        if ($e instanceof HttpExceptionInterface) {
+            $status = $e->getStatusCode();
+
+            return ['ok' => false, 'error' => match (true) {
+                $status === 403 => 'the user may not do this',
+                $status === 404 => 'that record does not exist, or the user cannot see it',
+                $status === 429 => 'too many attempts; try again later',
+                default => 'the action failed ('.$status.')'.($e->getMessage() ? ': '.$e->getMessage() : ''),
+            }];
+        }
+        report($e);
+
+        return ['ok' => false, 'error' => 'the action failed in the app; the error is in its log'];
+    }
+
+    /** What the action answered: JSON as is, a download as a file, a redirect as where it went and the message it flashed. */
+    private static function answer(Response $response, ?Session $session, array $flash, array $before): array
     {
         $status = $response->getStatusCode();
         if ($status >= 400) {
@@ -134,9 +204,12 @@ class Dispatcher
 
             return ['ok' => false, 'error' => is_array($data) ? ($data['message'] ?? 'the action failed') : 'the action failed ('.$status.')'];
         }
+        if ($file = Files::from($response)) {
+            return Files::keep(...$file);
+        }
         $message = null;
         foreach ($flash as $i => $key) {
-            $now = $session->get($key);
+            $now = $session?->get($key);
             if (is_string($now) && $now !== $before[$i]) {
                 $message = $now;
             }

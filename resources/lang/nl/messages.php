@@ -24,4 +24,5 @@ return [
     'report_failed' => 'De melding kon niet worden verstuurd.',
     'report_not_found' => 'Dit gesprek heeft zo\'n antwoord niet.',
     'report_too_many' => 'Dat waren veel meldingen. Probeer het later opnieuw.',
+    'no_access' => 'Je kunt de assistent niet gebruiken. Vraag een beheerder om toegang.',
 ];

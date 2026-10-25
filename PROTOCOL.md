@@ -89,6 +89,13 @@ A `text` after a `step` or a `card` starts a new answer bubble. All the bubbles 
 | `confirm` | `id`, `title`, `input`, `danger` | the action and the input it will run with, a Confirm and a Cancel button; `danger` is a destructive action |
 | `done` | `title`, `message?`, `url?` | an action ran; the app's data changed |
 | `failed` | `title`, `message` | an action was refused or failed; `message` says why |
+| `file` | `title`, `name`, `url`, `size` | an action handed over a file: a download button with the file `name` and its `size` in bytes |
+
+**Files.** `url` is a signed link the server package made for this user: it works for a short time and needs no login, so a client opens it as a plain download (`<a href download target="_blank">`), never through the app's router. `title` says what the file is ("Your transactions"), `name` is the file name with its extension (`transactions.xlsx`).
+
+```json
+{"type": "card", "kind": "file", "title": "Your transactions", "name": "transactions.xlsx", "url": "https://api.example.com/rekhu/assistant/files/f_1?expires=…&signature=…", "size": 12345}
+```
 
 **Confirming.** Nothing runs when the confirm card is shown. The server package keeps the action and its exact input on the server under `id`. Only a `POST` with `"confirm": "<id>"` runs it, with that stored input; a typed "yes", or an id the server package did not issue to this user in this conversation, runs nothing. Cancel is an ordinary message ("No, cancel that.").
 
@@ -176,7 +183,27 @@ A second report on the same answer by the same user replaces the first. The user
 
 ## Text
 
-Answers are a small markdown: paragraphs, `-` and `1.` lists, `**bold**`, `*italics*`, `` `code` `` and links `[label](url)` to `http(s)://` or to the app's own paths. A client renders nothing else as HTML.
+Answers are a small markdown: paragraphs, `-` and `1.` lists, tables between pipes, `**bold**`, `*italics*`, `` `code` ``, fenced code blocks, charts and links `[label](url)` to `http(s)://` or to the app's own paths. A client renders nothing else as HTML.
+
+### Charts
+
+A fenced block with the language `chart` holds one chart as JSON:
+
+````
+```chart
+{"type": "bar", "title": "Revenue per month", "unit": "€", "labels": ["Jan", "Feb"], "series": [{"name": "2026", "data": [1200.5, 980]}]}
+```
+````
+
+| Field | |
+|---|---|
+| `type` | `bar`, `line`, `area`, `pie` or `donut` |
+| `title` | optional |
+| `unit` | optional: what the values are in (`€`, `orders`) |
+| `labels` | one per value |
+| `series` | at least one `{ "name", "data" }`; `data` holds numbers only. `pie` and `donut` use the first series, with no negative values |
+
+A client that draws charts escapes every text in them. A block that is not valid JSON, has an unknown type or no data is shown as an ordinary code block. While an answer streams, a client waits for the closing fence before drawing, rather than showing the JSON. A client that does not draw charts shows the block as code. The history returns the block as part of the answer's text.
 
 ## Changes
 

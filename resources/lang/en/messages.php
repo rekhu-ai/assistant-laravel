@@ -24,4 +24,5 @@ return [
     'report_failed' => 'Could not send the report.',
     'report_not_found' => 'There is no such answer in this conversation.',
     'report_too_many' => 'That was a lot of reports. Try again later.',
+    'no_access' => 'You cannot use the assistant. Ask an administrator for access.',
 ];

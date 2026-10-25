@@ -41,7 +41,7 @@
 2. [Getting started](#getting-started)
 3. [Complete examples](#complete-examples)
 4. [Choose your setup](#choose-your-setup): [Blade](#blade) · [Livewire](#livewire) · [Inertia](#inertia-vue-or-react) · [API with Nuxt, Next or a mobile app](#an-api-with-nuxt-next-or-a-mobile-app)
-5. [Actions](#actions): [from the config](#actions-from-the-config) · [your own permission rule](#your-own-permission-rule) · [writing good actions](#writing-good-actions)
+5. [Actions](#actions): [inputs and fields](#inputs-and-fields) · [files](#files) · [tool classes](#tool-classes) · [from the config](#actions-from-the-config) · [your own permission rule](#your-own-permission-rule) · [writing good actions](#writing-good-actions)
 6. [Pages](#pages)
 7. [Quick questions](#quick-questions)
 8. [Design your own chat](#design-your-own-chat)
@@ -327,6 +327,85 @@ public function cancel(Order $order) { … }           // DELETE: the user confi
 | `rules` | no | The input, when the method validates inline instead of through a form request. |
 | `guests` | no | `true` also offers the action in the [public chat](#a-public-chat-for-visitors). |
 | `label` | no | What the user reads while it runs and on its confirm and result cards: short, in their words, a text or one per language. Without it: "Working on it…" in their language. |
+| `inputs` | no | What an input means, in a few words: `['status' => 'paid, pending or failed']`. |
+| `fields` | no | Keep only these fields of what the action returns, for every record of a list: `['id', 'name', 'address.city']`. |
+
+### Inputs and fields
+
+A controller made for a page returns what the page needs: a resource with relations, reviews, managers. The assistant needs a few fields, and a short description of each input. Say both on the attribute, and keep the description itself to what the action does:
+
+```php
+#[Tool('The branches the user works with, newest first',
+    name: 'list_branches',
+    rules: BranchFilters::class,                      // a form request (or any class with rules()) that several actions share
+    inputs: ['search' => 'Matches the branch name', 'per_page' => 'At most 50'],
+    fields: ['id', 'name', 'address.city', 'children_count'],
+)]
+public function index(Request $request) { … }
+```
+
+`rules` takes an array or a class, so a list and its export share one set of filters. An input validated with `Rule::enum(Status::class)` is offered with its values and what they mean (`308 paid, 301 pending`), from each case's `label()` method or its name. `fields` uses dot paths, with `*` for every item of a list (`children.*.name`); a paginator's `meta` stays.
+
+Every result is made to fit: the links a paginator adds for web pages are left out, and a list too long to read loses its last rows, never its closing brackets or its paging, with a note telling the assistant how many it got so it asks for the rest.
+
+### Files
+
+An action that returns a download (`response()->download()`, `streamDownload()`, Laravel Excel's `Excel::download()`, a PDF) needs nothing else. The package keeps the file for a short while and the user gets a **Download** button in the chat:
+
+```php
+#[Tool('Export the transactions as Excel, with the same filters as list_transactions', rules: TransactionFilters::class)]
+public function export(TransactionFilters $request)
+{
+    return Excel::download(new TransactionsExport($request->validated()), 'transactions.xlsx');
+}
+```
+
+The file is kept in your cache (all your servers share it) for `files.minutes` (15), at most `files.max_mb` (20 MB). The button's link is signed and expires; it works without your login, so it also opens from a Nuxt or mobile front end that signs in with a token. A temporary file the download would have removed after sending is removed.
+
+### Tool classes
+
+Some questions have no page in your app, and no route: who has not paid but still comes, the revenue of one branch this month, today's attendance of one class. Write them for the assistant as a Tool class:
+
+```bash
+php artisan make:assistant-tool UnpaidAttending
+```
+
+```php
+namespace App\Assistant\Tools;
+
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Http\Request;
+use Rekhu\Assistant\Tool;
+
+class UnpaidAttending extends Tool
+{
+    protected string $description = 'Children who attended this month and have no paid subscription for it: child, parent, phone, branch';
+
+    protected array $rules = ['branch' => 'nullable|integer'];
+
+    protected array $inputs = ['branch' => 'Only this branch: its id from list_branches'];
+
+    protected string|array|null $label = ['en' => 'Checking who has not paid', 'ar' => 'أتحقق من غير المسددين'];
+
+    public function authorize(?Authenticatable $user): bool
+    {
+        return $user?->can('transaction-list') ?? false;
+    }
+
+    public function handle(Request $request): array
+    {
+        return Child::attendedThisMonth()->withoutPaidSubscription()
+            ->when($request->integer('branch'), fn ($q, $branch) => $q->where('branch_id', $branch))
+            ->with('parent')->get()
+            ->map(fn ($child) => ['child' => $child->name, 'parent' => $child->parent->name, 'phone' => $child->parent->phone])
+            ->all();
+    }
+}
+```
+
+Every class in `app/Assistant/Tools` is offered by itself, to the users its `authorize()` allows; `RekhuAssistant::tools([...])` adds classes kept elsewhere. `handle()` gets the input as the request, validated against `$rules` first, with `$request->user()` as the user, and anything else it asks for from the container. It returns an array, a model or collection, a JSON resource, or a download. A tool that changes something sets `protected bool $confirm = true;` so the user clicks **Confirm** first. `$name` (the class name in snake case), `$fields` and `$guests` work as on the attribute.
+
+Use the attribute for what the user can already do in your app, so the chat goes through the same route, middleware and policies. Use a Tool class for what only the assistant needs.
 
 **Confirmations.** When an action needs confirming, nothing runs until the user clicks **Confirm** on the card. The action and its exact input are kept on the server; a typed "yes", or anything the model writes, cannot run it.
 
@@ -363,6 +442,14 @@ RekhuAssistant::authorizeUsing(fn ($user, $route) => $user->isAbleTo($route->get
 ```
 
 This only decides what the assistant offers. Every call still runs through the route's own middleware, so a user can never do more through the chat than in the app.
+
+Who may use the chat at all is decided by the chat's middleware (`REKHU_ASSISTANT_MIDDLEWARE`), and by your own rule, without a middleware of your own:
+
+```php
+RekhuAssistant::accessUsing(fn ($user) => $user->isAbleTo('assistant-access'));
+```
+
+A user it refuses gets a 403 with "You cannot use the assistant. Ask an administrator for access." in their language.
 
 ## Writing good actions
 
@@ -438,7 +525,15 @@ const { greeting, quick, report } = await chat.history();
 await chat.send('Where is my order?', (event) => { /* text, step, card, error, done (with the answer's id) */ });
 ```
 
+A chat of your own draws an answer the way the widget does, tables and charts included, with `renderMessage()`; a `file` card carries the name and the link of a [file](#files) for a download button:
+
+```vue
+<div v-html="renderMessage(message.text)" />   <!-- import { renderMessage } from '@rekhu/assistant-widget' -->
+```
+
 The [widget's README](https://www.npmjs.com/package/@rekhu/assistant-widget) lists every variable, part and method.
+
+**What the assistant already knows how to do.** It reads lists to the end before it counts, shows statuses in words, writes links as short labels, does not talk about the user's permissions, offers a file for long lists, and draws bar, line, area, pie and donut charts when figures read better as one. None of that belongs in your instructions.
 
 How the assistant behaves, its tone and what it knows about your app and your users: write that in the **knowledge** of the project in your Rekhu account. It reaches the assistant on every call. `instructions` in the config is for rules that belong with the code.
 
@@ -617,6 +712,8 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 | `max_message` | The most characters in one message from a signed-in user (4000). |
 | `max_tokens`, `max_steps` | How long one answer may get, and how many action rounds one turn may take. |
 | `guests.*` | The public chat: its greeting, message length, steps and caps. |
+| `tools.path`, `tools.namespace` | Where the [Tool classes](#tool-classes) are (`app/Assistant/Tools`). |
+| `files.minutes`, `files.max_mb`, `files.store` | How long a [file](#files) stays downloadable, its largest size, and the cache store that keeps it. |
 
 ### Your own routes
 

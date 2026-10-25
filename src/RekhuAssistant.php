@@ -28,7 +28,7 @@ use Rekhu\Assistant\Http\AssistantRoutes;
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.7.1';
+    public const VERSION = '0.8.0';
 
     /** The Rekhu product the keys of this package belong to: agk_<account>_assistant_<secret>. */
     public const PRODUCT = 'assistant';
@@ -65,6 +65,39 @@ class RekhuAssistant
     private static ?Closure $authorize = null;
 
     private static ?Closure $pages = null;
+
+    private static ?Closure $access = null;
+
+    /** @var list<class-string> */
+    private static array $tools = [];
+
+    /** Tool classes outside app/Assistant/Tools (a module, a package), offered like the ones found there. */
+    public static function tools(array $classes): void
+    {
+        self::$tools = array_values(array_unique([...self::$tools, ...$classes]));
+    }
+
+    /** @return list<class-string> */
+    public static function registeredTools(): array
+    {
+        return self::$tools;
+    }
+
+    /**
+     * fn ($user): bool — who may use the chat at all, beside the middleware of the chat routes. A user it refuses gets a
+     * 403 with a message in their language, and the widget says so.
+     *
+     *     RekhuAssistant::accessUsing(fn ($user) => $user->isAbleTo('assistant-access'));
+     */
+    public static function accessUsing(?Closure $resolver): void
+    {
+        self::$access = $resolver;
+    }
+
+    public static function allowsAccess(?Authenticatable $user): bool
+    {
+        return ! self::$access || ($user && (bool) (self::$access)($user));
+    }
 
     /** A text from the config: as it is, or the one for the app's locale from ['en' => …, 'ar' => …], else English, else the first. */
     public static function translated(mixed $value): ?string

@@ -14,16 +14,19 @@ use Throwable;
 
 /**
  * The input of an action as JSON schema, read from the validation rules the app already has: the form request in the
- * controller method's signature, or the rules given on the attribute. The route's own parameters ({order}) come first.
+ * controller method's signature, or the rules given on the attribute (an array, or a class whose rules() several
+ * actions share). The route's own parameters ({order}) come first. "inputs" says what a field means, in a few words.
  */
 class Schema
 {
-    public static function of(Route $route, array $rules, ?Authenticatable $user): array
+    /** @param  array<string, mixed>|class-string  $rules  @param  array<string, string>  $inputs */
+    public static function of(?Route $route, array|string $rules, ?Authenticatable $user, array $inputs = []): array
     {
-        $rules = $rules ?: self::formRequestRules($route, $user);
+        $rules = is_string($rules) ? self::classRules($rules, $user) : $rules;
+        $rules = $rules ?: ($route ? self::formRequestRules($route, $user) : []);
         $properties = [];
         $required = [];
-        foreach ($route->parameterNames() as $name) {
+        foreach ($route?->parameterNames() ?? [] as $name) {
             $properties[$name] = ['type' => 'string', 'description' => self::parameterHelp($route, $name)];
             if (! str_contains($route->uri(), '{'.$name.'?}')) {
                 $required[] = $name;
@@ -34,7 +37,7 @@ class Schema
         foreach ($rules as $field => $rule) {
             $parts = explode('.', (string) $field);
             $list = self::rules($rule);
-            $schema = self::field($list);
+            $schema = self::field($list, $inputs[$field] ?? null);
             if (count($parts) === 1) {
                 $properties[$field] = array_merge($properties[$field] ?? [], $schema);
                 if (in_array('required', $list, true)) {
@@ -58,6 +61,15 @@ class Schema
             } elseif (count($parts) === 2) {
                 $properties[$root]['type'] = 'object';
                 $properties[$root]['properties'][$parts[1]] = $schema;
+            }
+        }
+
+        // an input described but not in the rules (a filter the controller reads itself) is still offered
+        foreach ($inputs as $field => $text) {
+            if (! str_contains((string) $field, '.') && ! isset($properties[$field])) {
+                $properties[$field] = ['type' => 'string', 'description' => (string) $text];
+            } elseif (isset($properties[$field]) && ! isset($rules[$field])) {
+                $properties[$field]['description'] = trim($text.' '.($properties[$field]['description'] ?? ''));
             }
         }
 
@@ -91,21 +103,30 @@ class Schema
         $method = Routes::method($route);
         foreach ($method?->getParameters() ?? [] as $parameter) {
             $type = $parameter->getType();
-            if (! $type instanceof ReflectionNamedType || $type->isBuiltin() || ! is_subclass_of($type->getName(), FormRequest::class)) {
-                continue;
-            }
-            try {
-                $request = $type->getName()::create('/', 'POST');
-                $request->setContainer(app())->setUserResolver(fn () => $user);
-                $rules = method_exists($request, 'rules') ? app()->call([$request, 'rules']) : [];
-
-                return is_array($rules) ? $rules : [];
-            } catch (Throwable) {
-                return [];
+            if ($type instanceof ReflectionNamedType && ! $type->isBuiltin() && is_subclass_of($type->getName(), FormRequest::class)) {
+                return self::classRules($type->getName(), $user);
             }
         }
 
         return [];
+    }
+
+    /** The rules() of a form request, or of any class that has them, as the user would get them; none when unknown. */
+    public static function classRules(string $class, ?Authenticatable $user): array
+    {
+        try {
+            if (is_subclass_of($class, FormRequest::class)) {
+                $object = $class::create('/', 'POST');
+                $object->setContainer(app())->setUserResolver(fn () => $user);
+            } else {
+                $object = class_exists($class) ? app($class) : null;
+            }
+            $rules = $object && method_exists($object, 'rules') ? app()->call([$object, 'rules']) : [];
+
+            return is_array($rules) ? $rules : [];
+        } catch (Throwable) {
+            return [];
+        }
     }
 
     /** One field's rules as a list of strings ("required", "max:20", "in:a,b"); objects become their string form. */
@@ -120,6 +141,7 @@ class Schema
                 $out[] = (string) $item;
             } elseif ($item instanceof Enum) {
                 $out[] = self::enumRule($item);
+                $out[] = self::enumMeaning($item);
             }
         }
 
@@ -139,7 +161,27 @@ class Schema
         return null;
     }
 
-    private static function field(array $rules): array
+    /** "values: 308 paid, 301 pending" for a backed enum, from each case's label() or its name; null when the values are the names. */
+    private static function enumMeaning(Enum $rule): ?string
+    {
+        try {
+            $type = (fn () => $this->type)->call($rule);
+            if (! enum_exists($type) || ! is_subclass_of($type, \BackedEnum::class)) {
+                return null;
+            }
+            $values = array_map(function ($case) {
+                $label = method_exists($case, 'label') ? (string) $case->label() : Str::of($case->name)->snake(' ')->lower();
+
+                return (string) $case->value === $label ? null : $case->value.' '.$label;
+            }, $type::cases());
+
+            return array_filter($values) ? 'values:'.implode(', ', array_filter($values)) : null;
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    private static function field(array $rules, ?string $meaning = null): array
     {
         $schema = ['type' => 'string'];
         $notes = [];
@@ -157,6 +199,9 @@ class Schema
                 'nullable' => $notes[] = 'may be empty',
                 default => null,
             };
+            if ($name === 'values' && $argument !== null) {
+                $notes[] = 'values: '.$argument;
+            }
             if ($name === 'in' && $argument !== null) {
                 $schema['enum'] = array_map(fn ($v) => trim($v, '"'), str_getcsv($argument, ',', '"', '\\'));
             }
@@ -164,8 +209,9 @@ class Schema
                 $notes[] = $rule;
             }
         }
-        if ($notes) {
-            $schema['description'] = 'Rules: '.implode(', ', $notes);
+        $description = trim(($meaning ?? '').($notes ? ($meaning ? ' ' : '').'Rules: '.implode(', ', $notes) : ''));
+        if ($description !== '') {
+            $schema['description'] = $description;
         }
 
         return $schema;
