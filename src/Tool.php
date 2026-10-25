@@ -7,22 +7,22 @@ use Illuminate\Support\Str;
 
 /**
  * An action written for the assistant only: a short list, a summary, a figure, without a route or a controller. Put it
- * in app/Assistant/Tools (php artisan make:assistant-tool ListBranches) and it is offered by itself.
+ * in app/Assistant/Tools (php artisan make:assistant-tool OverdueInvoices) and it is offered by itself.
  *
- *     class ListBranches extends Tool
+ *     class OverdueInvoices extends Tool
  *     {
- *         protected string $description = 'The branches the user works with: id, name, city and active children';
+ *         protected string $description = 'Invoices past their due date and not paid: number, customer, amount and days overdue';
  *
- *         protected array $rules = ['search' => 'nullable|string|max:100'];
+ *         protected array $rules = ['days' => 'nullable|integer|min:1'];
  *
  *         public function authorize(?Authenticatable $user): bool
  *         {
- *             return $user?->can('branch-list') ?? false;
+ *             return $user?->can('view-invoices') ?? false;
  *         }
  *
  *         public function handle(Request $request): array
  *         {
- *             return Branch::visibleTo($request->user())->search($request->input('search'))->get(['id', 'name', 'city'])->all();
+ *             return Invoice::unpaid()->where('due_at', '<', now()->subDays($request->integer('days')))->get(['number', 'customer_name', 'total'])->all();
  *         }
  *     }
  *
@@ -36,7 +36,7 @@ abstract class Tool
     /** What it does, written for the assistant: what comes back, what the input means, when to use it. Never shown. */
     protected string $description = '';
 
-    /** The tool's name; by default the class name in snake case (ListBranches → list_branches). */
+    /** The tool's name; by default the class name in snake case (OverdueInvoices → overdue_invoices). */
     protected ?string $name = null;
 
     /** @var array<string, mixed> the input, as validation rules */

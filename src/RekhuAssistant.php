@@ -28,7 +28,7 @@ use Rekhu\Assistant\Http\AssistantRoutes;
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.8.0';
+    public const VERSION = '0.8.1';
 
     /** The Rekhu product the keys of this package belong to: agk_<account>_assistant_<secret>. */
     public const PRODUCT = 'assistant';
@@ -87,7 +87,7 @@ class RekhuAssistant
      * fn ($user): bool — who may use the chat at all, beside the middleware of the chat routes. A user it refuses gets a
      * 403 with a message in their language, and the widget says so.
      *
-     *     RekhuAssistant::accessUsing(fn ($user) => $user->isAbleTo('assistant-access'));
+     *     RekhuAssistant::accessUsing(fn ($user) => $user->can('use-assistant'));
      */
     public static function accessUsing(?Closure $resolver): void
     {

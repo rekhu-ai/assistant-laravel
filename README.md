@@ -332,19 +332,19 @@ public function cancel(Order $order) { … }           // DELETE: the user confi
 
 ### Inputs and fields
 
-A controller made for a page returns what the page needs: a resource with relations, reviews, managers. The assistant needs a few fields, and a short description of each input. Say both on the attribute, and keep the description itself to what the action does:
+A controller made for a page returns what the page needs: a resource with relations, reviews, images. The assistant needs a few fields, and a short description of each input. Say both on the attribute, and keep the description itself to what the action does:
 
 ```php
-#[Tool('The branches the user works with, newest first',
-    name: 'list_branches',
-    rules: BranchFilters::class,                      // a form request (or any class with rules()) that several actions share
-    inputs: ['search' => 'Matches the branch name', 'per_page' => 'At most 50'],
-    fields: ['id', 'name', 'address.city', 'children_count'],
+#[Tool('The customer\'s orders, newest first',
+    name: 'list_orders',
+    rules: OrderFilters::class,                       // a form request (or any class with rules()) that several actions share
+    inputs: ['search' => 'Order number or product name', 'per_page' => 'At most 50'],
+    fields: ['id', 'number', 'status', 'total', 'lines.*.product'],
 )]
 public function index(Request $request) { … }
 ```
 
-`rules` takes an array or a class, so a list and its export share one set of filters. An input validated with `Rule::enum(Status::class)` is offered with its values and what they mean (`308 paid, 301 pending`), from each case's `label()` method or its name. `fields` uses dot paths, with `*` for every item of a list (`children.*.name`); a paginator's `meta` stays.
+`rules` takes an array or a class, so a list and its export share one set of filters. An input validated with `Rule::enum(Status::class)` is offered with its values and what they mean (`308 paid, 301 pending`), from each case's `label()` method or its name. `fields` uses dot paths, with `*` for every item of a list (`lines.*.product`); a paginator's `meta` stays.
 
 Every result is made to fit: the links a paginator adds for web pages are left out, and a list too long to read loses its last rows, never its closing brackets or its paging, with a note telling the assistant how many it got so it asks for the rest.
 
@@ -364,10 +364,10 @@ The file is kept in your cache (all your servers share it) for `files.minutes` (
 
 ### Tool classes
 
-Some questions have no page in your app, and no route: who has not paid but still comes, the revenue of one branch this month, today's attendance of one class. Write them for the assistant as a Tool class:
+Some questions have no page in your app, and no route: which invoices are overdue, the revenue of one shop this month, the customers who ordered last week but not this week. Write them for the assistant as a Tool class:
 
 ```bash
-php artisan make:assistant-tool UnpaidAttending
+php artisan make:assistant-tool OverdueInvoices
 ```
 
 ```php
@@ -377,27 +377,27 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Rekhu\Assistant\Tool;
 
-class UnpaidAttending extends Tool
+class OverdueInvoices extends Tool
 {
-    protected string $description = 'Children who attended this month and have no paid subscription for it: child, parent, phone, branch';
+    protected string $description = 'Invoices past their due date and not paid: number, customer, amount and days overdue';
 
-    protected array $rules = ['branch' => 'nullable|integer'];
+    protected array $rules = ['days' => 'nullable|integer|min:1'];
 
-    protected array $inputs = ['branch' => 'Only this branch: its id from list_branches'];
+    protected array $inputs = ['days' => 'Only invoices overdue at least this many days'];
 
-    protected string|array|null $label = ['en' => 'Checking who has not paid', 'ar' => 'أتحقق من غير المسددين'];
+    protected string|array|null $label = ['en' => 'Checking overdue invoices', 'nl' => 'Ik zoek openstaande facturen'];
 
     public function authorize(?Authenticatable $user): bool
     {
-        return $user?->can('transaction-list') ?? false;
+        return $user?->can('view-invoices') ?? false;
     }
 
     public function handle(Request $request): array
     {
-        return Child::attendedThisMonth()->withoutPaidSubscription()
-            ->when($request->integer('branch'), fn ($q, $branch) => $q->where('branch_id', $branch))
-            ->with('parent')->get()
-            ->map(fn ($child) => ['child' => $child->name, 'parent' => $child->parent->name, 'phone' => $child->parent->phone])
+        return Invoice::unpaid()
+            ->where('due_at', '<', now()->subDays($request->integer('days')))
+            ->with('customer')->get()
+            ->map(fn ($invoice) => ['number' => $invoice->number, 'customer' => $invoice->customer->name, 'total' => $invoice->total, 'days_overdue' => $invoice->due_at->diffInDays()])
             ->all();
     }
 }
@@ -446,7 +446,7 @@ This only decides what the assistant offers. Every call still runs through the r
 Who may use the chat at all is decided by the chat's middleware (`REKHU_ASSISTANT_MIDDLEWARE`), and by your own rule, without a middleware of your own:
 
 ```php
-RekhuAssistant::accessUsing(fn ($user) => $user->isAbleTo('assistant-access'));
+RekhuAssistant::accessUsing(fn ($user) => $user->can('use-assistant'));     // a gate, a role, a plan: your rule
 ```
 
 A user it refuses gets a 403 with "You cannot use the assistant. Ask an administrator for access." in their language.

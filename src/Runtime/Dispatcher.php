@@ -181,18 +181,23 @@ class Dispatcher
             return ['ok' => false, 'error' => 'that record does not exist, or the user cannot see it'];
         }
         if ($e instanceof HttpExceptionInterface) {
-            $status = $e->getStatusCode();
-
-            return ['ok' => false, 'error' => match (true) {
-                $status === 403 => 'the user may not do this',
-                $status === 404 => 'that record does not exist, or the user cannot see it',
-                $status === 429 => 'too many attempts; try again later',
-                default => 'the action failed ('.$status.')'.($e->getMessage() ? ': '.$e->getMessage() : ''),
-            }];
+            return ['ok' => false, 'error' => self::refusal($e->getStatusCode(), $e->getMessage())];
         }
         report($e);
 
         return ['ok' => false, 'error' => 'the action failed in the app; the error is in its log'];
+    }
+
+    /** Why the app refused, in words the model can pass on: the app's own message, else what the status means. */
+    private static function refusal(int $status, string $message): string
+    {
+        return match (true) {
+            $status === 403 => 'the user may not do this',
+            $status === 404 => 'that record does not exist, or the user cannot see it',
+            $status === 429 => 'too many attempts; try again later',
+            trim($message) !== '' => $message,
+            default => 'the action failed ('.$status.')',
+        };
     }
 
     /** What the action answered: JSON as is, a download as a file, a redirect as where it went and the message it flashed. */
@@ -202,7 +207,7 @@ class Dispatcher
         if ($status >= 400) {
             $data = $response instanceof JsonResponse ? $response->getData(true) : null;
 
-            return ['ok' => false, 'error' => is_array($data) ? ($data['message'] ?? 'the action failed') : 'the action failed ('.$status.')'];
+            return ['ok' => false, 'error' => self::refusal($status, is_array($data) && is_string($data['message'] ?? null) ? $data['message'] : '')];
         }
         if ($file = Files::from($response)) {
             return Files::keep(...$file);

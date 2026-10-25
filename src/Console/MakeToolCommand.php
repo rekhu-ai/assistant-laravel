@@ -4,7 +4,7 @@ namespace Rekhu\Assistant\Console;
 
 use Illuminate\Console\GeneratorCommand;
 
-/** php artisan make:assistant-tool ListBranches: a Tool class in app/Assistant/Tools, offered by itself. */
+/** php artisan make:assistant-tool OverdueInvoices: a Tool class in app/Assistant/Tools, offered by itself. */
 class MakeToolCommand extends GeneratorCommand
 {
     protected $name = 'make:assistant-tool';

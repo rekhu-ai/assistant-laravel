@@ -2,9 +2,14 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.8.1 · 25 October 2026
+
+- The examples for Tool classes, `inputs`, `fields` and `accessUsing()` in the README and the code are about a shop, like the rest of the guide.
+- A refusal the app answers with an empty message (a 404 rendered as `{"message": ""}`) reached the assistant as an empty error, so it could not say why. A 403, 404 or 429 is now always told in words, and any other refusal with the app's own message or its status.
+
 ## 0.8.0 · 25 October 2026
 
-- **Tool classes.** An action written for the assistant only, without a route or a controller: a summary, a short list, a figure across tables (who has not paid but still comes, today's attendance of one class). `php artisan make:assistant-tool UnpaidAttending` makes one in `app/Assistant/Tools`, where every class is offered by itself to the users its `authorize()` allows. `handle()` gets the validated input as the request and returns an array, a model or collection, a JSON resource or a download. `RekhuAssistant::tools([...])` adds classes kept elsewhere; `tools.path` and `tools.namespace` move the folder.
+- **Tool classes.** An action written for the assistant only, without a route or a controller: a summary, a short list, a figure across tables (overdue invoices, the revenue of one shop this month). `php artisan make:assistant-tool OverdueInvoices` makes one in `app/Assistant/Tools`, where every class is offered by itself to the users its `authorize()` allows. `handle()` gets the validated input as the request and returns an array, a model or collection, a JSON resource or a download. `RekhuAssistant::tools([...])` adds classes kept elsewhere; `tools.path` and `tools.namespace` move the folder.
 - **Files.** An action that returns a download (`download()`, `streamDownload()`, Laravel Excel, a PDF) gives the user a Download button in the chat, with no signed route of your own. The file is kept in the cache, which all servers share, for `files.minutes` (15) and at most `files.max_mb` (20 MB); the link is signed and expires, and works from a front end that signs in with a token. The stream gets a `file` card. Widget 0.4.0 shows it.
 - **`inputs` and `fields`.** `#[Tool(inputs: ['status' => 'paid, pending or failed'])]` says what an input means, so the description can stay short. `fields: ['id', 'name', 'address.city']` keeps only those fields of every record the action returns, so a resource made for a page needs no second, shorter route. Both work in `actions.include` and on Tool classes.
 - **Shared rules.** `rules` takes a class too: a form request, or any class with `rules()`, so a list and its export share one set of filters. An input validated with `Rule::enum()` is offered with its values and what they mean (`308 paid`), from each case's `label()` or its name.
