@@ -573,6 +573,39 @@ public function quote(QuoteRequest $request) { … }   // the route must work wi
 | CSRF | Stays on, as for signed-in users. |
 | Cost | All visitors together show as one tenant, **Visitors**, in the project's usage, and count toward its monthly limit. Set that limit before you turn the public chat on. |
 
+### From a Flutter app or another API client
+
+A mobile app sends no CSRF token, so give the public route your API middleware instead of `web`:
+
+```dotenv
+REKHU_ASSISTANT_GUESTS=true
+REKHU_ASSISTANT_GUEST_MIDDLEWARE=api
+```
+
+Run `php artisan config:clear` (or `config:cache` again) and check that the route is there:
+
+```bash
+php artisan route:list --path=visitor
+```
+
+The address is the chat's path plus `visitor/chat`: `https://api.example.com/rekhu/assistant/visitor/chat`, or `…/api/rekhu/assistant/visitor/chat` when `REKHU_ASSISTANT_PATH` is `api/rekhu/assistant`. In [`rekhu_assistant`](https://pub.dev/packages/rekhu_assistant):
+
+```dart
+final client = RekhuAssistantClient(
+  endpoint: Uri.parse('https://api.example.com/rekhu/assistant/visitor/chat'),
+  visitor: true,
+);
+```
+
+The client sends an anonymous id per install in `X-Rekhu-Visitor`; a request without it is refused with 422.
+
+| The app gets | Why |
+|---|---|
+| 404 | The public chat is off (`REKHU_ASSISTANT_GUESTS` is not `true`), the config is still cached from before, or the address misses the `api/` part of `REKHU_ASSISTANT_PATH`. |
+| 419 | The route still has the `web` middleware: set `REKHU_ASSISTANT_GUEST_MIDDLEWARE=api`. |
+| 422 | The client was made without `visitor: true`, so it sends no visitor id. |
+| 429 | A cap under `guests` in the config was reached. |
+
 ## Reports
 
 Under each answer the user sees **Report a problem**. They pick what went wrong, may say what they expected instead, and send it; the link becomes "Thanks, we will look into it." The report shows up in the **Reports** section of the project's **Assistant** tab in your Rekhu account, linked to the conversation it came from, so you can see what went wrong and improve the knowledge, the help or your actions.
