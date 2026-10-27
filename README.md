@@ -588,11 +588,11 @@ Run `php artisan config:clear` (or `config:cache` again) and check that the rout
 php artisan route:list --path=visitor
 ```
 
-The address is the chat's path plus `visitor/chat`: `https://api.example.com/rekhu/assistant/visitor/chat`, or `…/api/rekhu/assistant/visitor/chat` when `REKHU_ASSISTANT_PATH` is `api/rekhu/assistant`. In [`rekhu_assistant`](https://pub.dev/packages/rekhu_assistant):
+The address is the signed-in chat's address with `visitor/` before `chat`. With `RekhuAssistant::routes()` in `routes/api.php` (as the Flutter guide sets it up), Laravel puts `api/` in front: `https://api.example.com/api/rekhu/assistant/visitor/chat`. With the package's own routes it is `https://api.example.com/rekhu/assistant/visitor/chat`, plus whatever `REKHU_ASSISTANT_PATH` adds. `route:list` shows the one your app has. In [`rekhu_assistant`](https://pub.dev/packages/rekhu_assistant):
 
 ```dart
 final client = RekhuAssistantClient(
-  endpoint: Uri.parse('https://api.example.com/rekhu/assistant/visitor/chat'),
+  endpoint: Uri.parse('https://api.example.com/api/rekhu/assistant/visitor/chat'),
   visitor: true,
 );
 ```
@@ -601,7 +601,7 @@ The client sends an anonymous id per install in `X-Rekhu-Visitor`; a request wit
 
 | The app gets | Why |
 |---|---|
-| 404 | The public chat is off (`REKHU_ASSISTANT_GUESTS` is not `true`), the config is still cached from before, or the address misses the `api/` part of `REKHU_ASSISTANT_PATH`. |
+| 404 | The public chat is off (`REKHU_ASSISTANT_GUESTS` is not `true`), the config is still cached from before, or the address misses the `api/` that `routes/api.php` or `REKHU_ASSISTANT_PATH` adds. |
 | 419 | The route still has the `web` middleware: set `REKHU_ASSISTANT_GUEST_MIDDLEWARE=api`. |
 | 422 | The client was made without `visitor: true`, so it sends no visitor id. |
 | 429 | A cap under `guests` in the config was reached. |
