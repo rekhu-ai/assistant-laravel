@@ -23,7 +23,7 @@ class Platform
     {
         $key = RekhuAssistant::key();
         if (! $key) {
-            throw new RuntimeException('REKHU_ASSISTANT_KEY is missing or not a Rekhu app key. Run php artisan rekhu:assistant-install.');
+            throw new RuntimeException('REKHU_ASSISTANT_KEY is missing or not a Rekhu app key. Run php artisan rekhu:assistant-install. No Rekhu account yet? Create one at https://rekhu.com/register?ref=assistant-laravel: it starts with $10 credit, no card needed.');
         }
         $response = Http::baseUrl(rtrim((string) config('rekhu-assistant.platform'), '/'))
             ->timeout(180)
@@ -68,7 +68,7 @@ class Platform
     {
         $key = RekhuAssistant::key();
         if (! $key) {
-            throw new RuntimeException('REKHU_ASSISTANT_KEY is missing or not a Rekhu app key. Run php artisan rekhu:assistant-install.');
+            throw new RuntimeException('REKHU_ASSISTANT_KEY is missing or not a Rekhu app key. Run php artisan rekhu:assistant-install. No Rekhu account yet? Create one at https://rekhu.com/register?ref=assistant-laravel: it starts with $10 credit, no card needed.');
         }
         $response = Http::baseUrl(rtrim((string) config('rekhu-assistant.platform'), '/'))
             ->timeout(5)

@@ -2,6 +2,13 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.9.2 · 27 October 2026
+
+- **Start free.** The README says how to begin: [create a Rekhu account](https://rekhu.com/register?ref=assistant-laravel) and it starts with $10 credit, no card needed, with links to the docs and pricing.
+- A missing or wrong key now says where to get one: the message links to sign-up, where a new account starts with $10 credit. `rekhu:assistant-install` shows the same line before it asks for the key.
+- The README explains the public chat for a Flutter app or another API client: the settings, the address with `api/`, and what a 404, 419, 422 or 429 means.
+- Widget 0.5.2.
+
 ## 0.9.1 · 25 October 2026
 
 - Widget 0.5.1: the developer view labels each action's input and what the assistant read, scrolls long lines instead of breaking words, opens results at the top, and has a Copy button for bug reports.

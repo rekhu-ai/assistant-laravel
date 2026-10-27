@@ -25,6 +25,8 @@
 
 **Rekhu Assistant** is a custom AI assistant you build into your own Laravel application, for your own customers. It answers questions from your help, sends people to the right page, and carries out tasks through the routes you mark, **as the signed-in user**, with your validation, policies and middleware. Every conversation is metered per customer by [Rekhu](https://rekhu.com), so you can offer the assistant to your customers and bill them for it.
 
+> **Start free.** [Create a Rekhu account](https://rekhu.com/register?ref=assistant-laravel) and get **$10 credit** to try it, no card needed. After that you top up from $10 under **Billing**: no subscription, and unused credit never expires. [rekhu.com](https://rekhu.com) · [Docs](https://rekhu.com/docs) · [Pricing](https://rekhu.com/pricing)
+
 | Feature | What it means |
 |---|---|
 | **Actions from your own routes** | Put `#[Tool]` on a controller method. The form request's rules become the input; your controller does the work. |
@@ -64,7 +66,7 @@
 | Laravel | 10.48 or newer: 10, 11, 12 or 13 |
 | Cache | any store your app already uses; conversations are kept there |
 | Database | nothing: no tables and no migrations of its own |
-| Rekhu | an account with an app key and credit; [sign up](https://rekhu.com/register), then top up from $10 under **Billing** |
+| Rekhu | an account with an app key and credit; [sign up](https://rekhu.com/register?ref=assistant-laravel) and get $10 credit to start, then top up from $10 under **Billing** |
 
 Laravel 10 and 11 no longer get security fixes and every release of them has open advisories, so a current Composer
 refuses to install them unless the app allows it; upgrading the app is the real fix.
@@ -73,7 +75,7 @@ refuses to install them unless the app allows it; upgrading the app is the real 
 
 ### 1. Get an app key
 
-[Create a Rekhu account](https://rekhu.com/register) and put credit on it under **Billing** (from $10). The assistant draws from that credit per conversation; without credit it cannot answer.
+[Create a Rekhu account](https://rekhu.com/register?ref=assistant-laravel): it starts with $10 credit, no card needed. The assistant draws from that credit per conversation; when it runs out, top up under **Billing** (from $10). Without credit it cannot answer.
 
 Then create a **project** under **Projects → New project**: choose **Laravel app**, monolith or multi-tenant, and name it (for example "Shop"). Turn on its assistant on the **Assistant** tab, and on the **Connection** tab add a key for your first environment (`local`) in the **Rekhu Assistant** card. Rekhu Builder's key in the card above it is a different key, for `rekhu/laravel-dev`. Add one per environment later (`staging`, `production`); they all count toward the same project. A key is shown once, together with the commands of the next step.
 

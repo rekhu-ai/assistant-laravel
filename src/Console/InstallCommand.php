@@ -15,6 +15,9 @@ class InstallCommand extends Command
 
     public function handle(): int
     {
+        if (! $this->option('key')) {
+            $this->line('  No Rekhu account yet? Create one at https://rekhu.com/register?ref=assistant-laravel: it starts with $10 credit, no card needed.');
+        }
         $key = trim((string) ($this->option('key') ?: $this->secret('The app key (Rekhu account → Projects → your app → Connection tab → Add key)')));
         if (! preg_match('/^agk_([a-z0-9-]+)_([a-z0-9-]+)_[A-Za-z0-9_-]+$/', $key, $m)) {
             $this->error('That is not a Rekhu app key (it starts with agk_).');
