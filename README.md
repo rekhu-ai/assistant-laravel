@@ -728,7 +728,7 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 | Environment variable | Default | Purpose |
 |---|---|---|
 | `REKHU_ASSISTANT_KEY` | | The app key. Written by `rekhu:assistant-install`. |
-| `REKHU_ASSISTANT_MODEL` | `claude-sonnet-5` | The model that answers. |
+| `REKHU_ASSISTANT_MODEL` | empty | The model that answers, by its name in your Rekhu account. Empty uses the default model. |
 | `REKHU_ASSISTANT_NAME` | `Assistant` | The assistant's name in the widget and in its answers. |
 | `REKHU_ASSISTANT_MIDDLEWARE` | `web,auth` | Who may use the chat. `api,auth:sanctum` for an API. |
 | `REKHU_ASSISTANT_GUESTS` | `false` | Turns on the public chat for visitors. |

@@ -9,8 +9,9 @@ return [
     // The platform. Only change it for a test platform.
     'platform' => env('REKHU_PLATFORM', 'https://api.rekhu.ai'),
 
-    // The model the assistant answers with, and how long one answer and one turn may get.
-    'model' => env('REKHU_ASSISTANT_MODEL', 'claude-sonnet-5'),
+    // The model the assistant answers with, by its name in the Rekhu account (empty: the account's default), and how
+    // long one answer and one turn may get.
+    'model' => env('REKHU_ASSISTANT_MODEL'),
     'max_tokens' => 4000,
     'max_message' => 4000,                  // characters per message from a signed-in user
     'max_steps' => 8,

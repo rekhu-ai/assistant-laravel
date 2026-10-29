@@ -2,6 +2,10 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.9.3 · 29 October 2026
+
+- **Models by name.** `REKHU_ASSISTANT_MODEL` takes a model's name as your Rekhu account lists it, and is empty by default: the assistant then answers with the account's default model.
+
 ## 0.9.2 · 27 October 2026
 
 - **Start free.** The README says how to begin: [create a Rekhu account](https://rekhu.com/register?ref=assistant-laravel) and it starts with $10 credit, no card needed, with links to the docs and pricing.
