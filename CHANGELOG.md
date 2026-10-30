@@ -2,6 +2,14 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.9.4 · 30 October 2026
+
+- **Long requests finish instead of breaking the chat.** An answer cut off at its length (a request for dozens of files at once) runs none of its half-written actions; the assistant is told and goes on in smaller steps in the same turn. Before, the cut-off answer was stored as it was, and the model refused every next message in that conversation.
+- **Stuck conversations go on.** A conversation stored with an action and no result for it is sent to the model without that action, so a chat that broke this way works again after the update.
+- **When one answer's steps run out**, the user reads where it stopped and how to go on (say "continue", or ask for a few at a time) instead of an empty answer.
+- **The user reads what a failure means for them:** try again in a minute (the model is busy), let the administrator of this app know (paused, at its monthly limit, or the plan needs attention), or start a new chat (the conversation was refused). The log says the technical reason, as before. In English, Arabic and Dutch.
+- `max_tokens` is 16000 by default (was 4000): longer answers are no longer cut off. Set it lower in `config/rekhu-assistant.php` if you want.
+
 ## 0.9.3 · 29 October 2026
 
 - **Models by name.** `REKHU_ASSISTANT_MODEL` takes a model's name as your Rekhu account lists it, and is empty by default: the assistant then answers with the account's default model.

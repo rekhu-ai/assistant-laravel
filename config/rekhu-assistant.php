@@ -12,7 +12,7 @@ return [
     // The model the assistant answers with, by its name in the Rekhu account (empty: the account's default), and how
     // long one answer and one turn may get.
     'model' => env('REKHU_ASSISTANT_MODEL'),
-    'max_tokens' => 4000,
+    'max_tokens' => 16000,
     'max_message' => 4000,                  // characters per message from a signed-in user
     'max_steps' => 8,
 

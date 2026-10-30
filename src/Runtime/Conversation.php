@@ -86,7 +86,42 @@ final class Conversation
         return array_map(fn (array $message) => ['role' => $message['role'], 'content' => is_array($message['content'])
             ? array_map(fn ($block) => ($block['type'] ?? '') === 'tool_use' ? ['input' => self::input($block['input'] ?? null)] + $block : $block, $message['content'])
             : $message['content'],
-        ], $this->messages);
+        ], self::paired($this->messages));
+    }
+
+    /**
+     * The messages with every action call followed by its result, as the model requires: a call without a result (an
+     * answer that broke off before its actions ran) and a result without its call are left out, and so is a message
+     * that is empty without them. A conversation stored with such a gap goes on instead of being refused.
+     */
+    private static function paired(array $messages): array
+    {
+        $messages = array_values($messages);
+        $kinds = fn ($message, $type) => is_array($message['content'] ?? null) ? array_filter($message['content'], fn ($block) => ($block['type'] ?? '') === $type) : [];
+        $kept = [];
+        foreach ($messages as $i => $message) {
+            if ($message['role'] === 'assistant') {
+                $answered = array_column($kinds($messages[$i + 1] ?? [], 'tool_result'), 'tool_use_id');
+                $kept[$i] = array_values(array_intersect(array_column($kinds($message, 'tool_use'), 'id'), $answered));
+            }
+        }
+        $out = [];
+        foreach ($messages as $i => $message) {
+            if (is_array($message['content'])) {
+                $calls = $message['role'] === 'assistant' ? $kept[$i] : (($messages[$i - 1]['role'] ?? '') === 'assistant' ? $kept[$i - 1] : []);
+                $message['content'] = array_values(array_filter($message['content'], fn ($block) => match ($block['type'] ?? '') {
+                    'tool_use' => in_array($block['id'] ?? null, $calls, true),
+                    'tool_result' => in_array($block['tool_use_id'] ?? null, $calls, true),
+                    default => true,
+                }));
+                if (! array_filter($message['content'], fn ($block) => ($block['type'] ?? '') !== 'thinking')) {
+                    continue;
+                }
+            }
+            $out[] = $message;
+        }
+
+        return $out;
     }
 
     /** An action's input as a JSON object: {} when empty, and when an older cache store kept an object it cannot read back. */

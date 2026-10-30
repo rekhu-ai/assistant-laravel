@@ -66,7 +66,7 @@ final class ChatTest extends TestCase
     {
         app()->setLocale('ar');
 
-        $this->assertSame('المساعد غير متاح الآن. حاول مرة أخرى بعد قليل.', __('rekhu-assistant::messages.unavailable'));
+        $this->assertSame('تعذّر الوصول إلى المساعد الآن. حاول مرة أخرى بعد قليل.', __('rekhu-assistant::messages.unavailable'));
     }
 
     public function test_what_the_app_reports_for_the_user_stays_out_of_the_history(): void
@@ -135,7 +135,7 @@ final class ChatTest extends TestCase
         $events = $this->events($this->actingAs($this->user())->post('/rekhu/assistant/chat', ['message' => 'Hi'], $this->headers())->streamedContent());
 
         $this->assertSame(['start', 'error'], array_column($events, 'type'));
-        $this->assertSame('The assistant is not available right now. Please try again in a moment.', $events[1]['message']);
+        $this->assertSame(__('rekhu-assistant::messages.paused'), $events[1]['message']);
         Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'paused or at its monthly limit'))->once();
     }
 

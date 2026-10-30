@@ -749,7 +749,7 @@ php artisan vendor:publish --tag=rekhu-assistant-config
 | `help_path` | Another folder for the help topics. |
 | `conversation_minutes` | How long a conversation is kept (1440). |
 | `max_message` | The most characters in one message from a signed-in user (4000). |
-| `max_tokens`, `max_steps` | How long one answer may get, and how many action rounds one turn may take. |
+| `max_tokens`, `max_steps` | How long one answer may get (16000), and how many action rounds one turn may take (8). An answer cut off at its length runs none of its actions and goes on in smaller steps; when the rounds run out, the user reads how to go on. |
 | `guests.*` | The public chat: its greeting, message length, steps and caps. |
 | `tools.path`, `tools.namespace` | Where the [Tool classes](#tool-classes) are (`app/Assistant/Tools`). |
 | `log.*`, `debug` | The [chat log](#when-an-answer-is-wrong) (on, 14 days, without results) and the developer view (local only). |

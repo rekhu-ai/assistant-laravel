@@ -2,7 +2,12 @@
 
 // What the users of your app read. Publish with: php artisan vendor:publish --tag=rekhu-assistant-lang
 return [
-    'unavailable' => 'The assistant is not available right now. Please try again in a moment.',
+    'unavailable' => 'The assistant cannot be reached right now. Please try again in a moment.',
+    'busy' => 'The assistant is very busy right now. Please try again in a minute.',
+    'paused' => 'The assistant is paused or has reached its limit for this month. Please let the administrator of this app know.',
+    'credit' => 'The assistant is switched off for now because its plan needs attention. Please let the administrator of this app know.',
+    'conversation' => 'Something went wrong in this conversation. Please start a new chat.',
+    'too_big' => 'This request needs more steps than one answer allows, so I stopped here. Say "continue" to go on, or split it into smaller parts, for example a few at a time.',
     'empty' => 'Say something first.',
     'protocol' => 'This app speaks Rekhu Assistant protocol :version.',
     'visitor_id' => 'The public chat needs a visitor id (X-Rekhu-Visitor).',

@@ -20,6 +20,9 @@ class Turn
 {
     public const RESULT_LIMIT = 30000;
 
+    /** What the model is told when its answer reached the length limit: the actions in it were cut and none ran. */
+    public const CUT_OFF = 'Your last answer reached its length limit and was cut off, so none of the actions in it ran. Go on in smaller steps: fewer actions in one answer, or shorter text.';
+
     private array $actions;
 
     private array $pages;
@@ -64,14 +67,26 @@ class Turn
             $calls++;
             $message = $platform->message([
                 'model' => config('rekhu-assistant.model'),
-                'max_tokens' => (int) config('rekhu-assistant.max_tokens', 4000),
+                'max_tokens' => (int) config('rekhu-assistant.max_tokens', 16000),
                 'system' => $system,
                 'tools' => $tools,
                 'messages' => self::cached($this->conversation->forModel()),
             ], fn ($delta) => ($this->emit)(['type' => 'text', 'text' => $delta]));
-            $this->conversation->messages[] = ['role' => 'assistant', 'content' => $message['content'], 'id' => $answer];
             $stop = $message['stop_reason'];
-            $chars += array_sum(array_map(fn ($block) => ($block['type'] ?? '') === 'text' ? mb_strlen((string) $block['text']) : 0, $message['content']));
+            $content = $message['content'];
+            if ($stop === 'max_tokens') {
+                // an action cut off halfway never runs: the answer keeps its text, and the model goes on in smaller steps
+                $content = array_values(array_filter($content, fn ($block) => ($block['type'] ?? '') !== 'tool_use'));
+            }
+            if (array_filter($content, fn ($block) => in_array($block['type'] ?? '', ['text', 'tool_use'], true))) {
+                $this->conversation->messages[] = ['role' => 'assistant', 'content' => $content, 'id' => $answer];
+            }
+            $chars += array_sum(array_map(fn ($block) => ($block['type'] ?? '') === 'text' ? mb_strlen((string) $block['text']) : 0, $content));
+            if ($stop === 'max_tokens') {
+                $this->conversation->report(self::CUT_OFF);
+
+                continue;
+            }
             if ($stop !== 'tool_use') {
                 break;
             }
@@ -90,6 +105,13 @@ class Turn
                 ] + ($outcome['ok'] ? [] : ['is_error' => true]);
             }
             $this->conversation->messages[] = ['role' => 'user', 'content' => $results];
+        }
+        if (in_array($stop, ['tool_use', 'max_tokens'], true)) {
+            // the steps of one answer ran out before the work was done: the user reads where it stopped and how to go on
+            $said = __('rekhu-assistant::messages.too_big');
+            ($this->emit)(['type' => 'text', 'text' => ($chars > 0 ? "\n\n" : '').$said]);
+            $this->conversation->messages[] = ['role' => 'assistant', 'content' => [['type' => 'text', 'text' => $said]], 'id' => $answer];
+            $chars += mb_strlen($said);
         }
         $this->conversation->save();
         ChatLog::answer($this->conversation, $calls, $chars, $stop, $this->userRef, $this->visitor);
