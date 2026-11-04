@@ -11,7 +11,8 @@ use Rekhu\Assistant\RekhuAssistant;
 
 /**
  * The actions of the app, as the user may use them: every route whose controller method carries #[Tool], the routes
- * the config adds (actions.include, by route name or "VERB uri"), minus the routes the config blocks (actions.exclude,
+ * the config adds (actions.include, by route name or "VERB uri"), the routes switched on in assistant/actions.php (the
+ * scan's file), minus the routes the config blocks (actions.exclude,
  * name or uri patterns), whatever their attribute says; and the Tool classes, which the user is offered when their
  * authorize() says so.
  */
@@ -73,7 +74,10 @@ class Actions
         return $out;
     }
 
-    /** The route's tool and where it comes from: the config (which wins) or the #[Tool] attribute; [null, null] for neither. */
+    /**
+     * The route's tool and where it comes from: the config (which wins), the #[Tool] attribute, or assistant/actions.php
+     * (written by the scan); [null, null] for none.
+     */
     private static function tool(Route $route): array
     {
         $include = (array) config('rekhu-assistant.actions.include', []);
@@ -94,8 +98,13 @@ class Actions
             }
         }
         $tool = Routes::attribute($route, Tool::class);
+        if ($tool) {
+            return [$tool, 'attribute'];
+        }
+        // the scan's file, as the developer decided it: only entries that are on
+        $tool = ActionsFile::tool($route);
 
-        return [$tool, $tool ? 'attribute' : null];
+        return [$tool, $tool ? 'file' : null];
     }
 
     /** Tool names the model sees: the attribute's, else the route name ("orders.reorder" → orders_reorder). */

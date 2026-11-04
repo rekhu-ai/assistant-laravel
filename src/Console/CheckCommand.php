@@ -5,9 +5,12 @@ namespace Rekhu\Assistant\Console;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Route as Router;
 use ReflectionMethod;
 use ReflectionNamedType;
+use Rekhu\Assistant\Attributes\Tool;
 use Rekhu\Assistant\Catalogue\Actions;
+use Rekhu\Assistant\Catalogue\ActionsFile;
 use Rekhu\Assistant\Catalogue\Pages;
 use Rekhu\Assistant\Catalogue\Routes;
 use Rekhu\Assistant\RekhuAssistant;
@@ -43,6 +46,7 @@ class CheckCommand extends Command
             return self::FAILURE;
         }
         $run = $user && ! $this->option('no-run');
+        $this->file();
         $actions = Actions::for($user, all: ! $user);
         $this->line('<options=bold>Checking '.count($actions).' actions</>'.($user ? ' as user '.$user->getAuthIdentifier() : '').($this->option('locale') ? ', in '.$this->option('locale') : ''));
 
@@ -78,6 +82,62 @@ class CheckCommand extends Command
         $this->line('Run one action and see what the assistant reads: php artisan rekhu:assistant:try <name> --user=ID');
 
         return $this->problems ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * assistant/actions.php, the scan's file: there at all, every entry pointing at a route, no action both in the file
+     * and in the code, nothing that deletes without a click, and how many new entries wait for a decision.
+     */
+    private function file(): void
+    {
+        $relative = str_replace(base_path().'/', '', ActionsFile::path());
+        if (! ActionsFile::exists()) {
+            $this->line("  <fg=yellow>hint</>    No $relative: only the #[Tool] and config actions are offered. php artisan rekhu:assistant:scan proposes the rest.");
+            $this->hints++;
+            $this->newLine();
+
+            return;
+        }
+        $routes = [];
+        foreach (Router::getRoutes()->getRoutes() as $route) {
+            $routes[ActionsFile::key($route)] = $route;
+        }
+        $include = (array) config('rekhu-assistant.actions.include', []);
+        $entries = ActionsFile::all();
+        $waiting = 0;
+        $this->line("<options=bold>Checking $relative</> (".count($entries).' entries, '.count(array_filter($entries, fn ($e) => ($e['on'] ?? false) === true)).' on)');
+        foreach ($entries as $key => $entry) {
+            $found = [];
+            $route = $routes[$key] ?? null;
+            $on = ($entry['on'] ?? false) === true;
+            if (($entry['state'] ?? null) === 'new' && ! $on) {
+                $waiting++;
+            }
+            if (! $route) {
+                $found[] = [$on ? 'problem' : 'hint', ($entry['state'] ?? null) === 'gone' ? 'The route is gone: remove the entry, or keep it for when the route comes back.' : 'No route has this name or address: the entry is never offered.'];
+            } elseif ($on && (Routes::attribute($route, Tool::class) || isset($include[(string) $route->getName()]) || isset($include[Routes::verb($route).' '.$route->uri()]))) {
+                $found[] = ['problem', 'This action is also defined in the code ('.(Routes::attribute($route, Tool::class) ? '#[Tool]' : 'config actions.include').'), which wins: keep it in one place.'];
+            }
+            if ($on && trim((string) ($entry['description'] ?? '')) === '') {
+                $found[] = ['problem', 'It is on, but has no description: the assistant would not know what it does.'];
+            }
+            if ($on && $route && Routes::verb($route) === 'DELETE' && ($entry['confirm'] ?? null) === false) {
+                $found[] = ['problem', 'It deletes without a click by the user: remove confirm => false.'];
+            }
+            if (! $found) {
+                continue;
+            }
+            $this->line('  <fg=yellow>!</> <options=bold>'.ActionsFile::label($key).'</>');
+            foreach ($found as [$level, $text]) {
+                $level === 'problem' ? $this->problems++ : $this->hints++;
+                $this->line('      '.($level === 'problem' ? '<fg=red>problem</>' : '<fg=yellow>hint</>   ').' '.$text);
+            }
+        }
+        if ($waiting) {
+            $this->line("  <fg=yellow>hint</>    $waiting new actions are waiting for your decision in $relative (state \"new\", off).");
+            $this->hints++;
+        }
+        $this->newLine();
     }
 
     /** @return list<array{string, string}> what is unclear in how the action is described */

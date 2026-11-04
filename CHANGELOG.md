@@ -2,6 +2,15 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.10.0 · 5 November 2026
+
+- **Rekhu proposes the actions.** `php artisan rekhu:assistant:scan` reads the app's routes, the inputs they validate and the code of their controller methods (never its records), and writes `assistant/actions.php`: per route a description for the assistant, whether it needs the user's click, its inputs, the fields worth reading and a label, and whether Rekhu would offer it. Everything comes in off; the developer switches on what the assistant may do.
+- **The actions file is the developer's.** A new scan sends only routes the file does not have, adds them off and marked new, marks entries whose route is gone, and never changes an entry that is there. `#[Tool]` and `actions.include` win over it and are never put in it. Only entries that are on are offered; a `DELETE` route still needs the user's click.
+- **Kept in the Rekhu account.** The file each scan wrote is kept per environment and shown on the project's Assistant tab; `rekhu:assistant:scan --restore` writes it back. The scan drafts the project's knowledge there for the team to approve.
+- **`rekhu:assistant:test --user=ID`** asks the questions in `assistant/questions.php` (the scan writes one per action) as that user and checks each used the expected action, and with `says` the words of the answer.
+- **`rekhu:assistant:check`** also checks the actions file: entries without a route, actions defined in the code too, deleting without a click, new entries waiting for a decision, and says when there is no file.
+- `actions.file` in the config sets another place for the file.
+
 ## 0.9.4 · 30 October 2026
 
 - **Long requests finish instead of breaking the chat.** An answer cut off at its length (a request for dozens of files at once) runs none of its half-written actions; the assistant is told and goes on in smaller steps in the same turn. Before, the cut-off answer was stored as it was, and the model refused every next message in that conversation.

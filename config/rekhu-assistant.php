@@ -68,6 +68,9 @@ return [
         'exclude' => [
             // 'admin.*', '*.destroy', 'api/internal/*',
         ],
+        // The actions php artisan rekhu:assistant:scan proposed, as you decided them (on or off). Yours to edit and to
+        // commit; a new scan only adds routes it has not seen, switched off. #[Tool] and "include" win over it.
+        'file' => null,                     // null: assistant/actions.php
     ],
 
     // Actions written for the assistant only (php artisan make:assistant-tool): a summary, a short list, a figure, with

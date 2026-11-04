@@ -43,7 +43,7 @@
 2. [Getting started](#getting-started)
 3. [Complete examples](#complete-examples)
 4. [Choose your setup](#choose-your-setup): [Blade](#blade) · [Livewire](#livewire) · [Inertia](#inertia-vue-or-react) · [API with Nuxt, Next or a mobile app](#an-api-with-nuxt-next-or-a-mobile-app)
-5. [Actions](#actions): [inputs and fields](#inputs-and-fields) · [files](#files) · [tool classes](#tool-classes) · [from the config](#actions-from-the-config) · [your own permission rule](#your-own-permission-rule) · [writing good actions](#writing-good-actions)
+5. [Actions](#actions): [the actions file](#the-actions-file) · [inputs and fields](#inputs-and-fields) · [files](#files) · [tool classes](#tool-classes) · [from the config](#actions-from-the-config) · [your own permission rule](#your-own-permission-rule) · [writing good actions](#writing-good-actions)
 6. [Pages](#pages)
 7. [Quick questions](#quick-questions)
 8. [Design your own chat](#design-your-own-chat)
@@ -98,7 +98,15 @@ In your layout, before `</body>`:
 
 The chat button appears for signed-in users.
 
-### 4. Mark a first action
+### 4. Let Rekhu propose the actions
+
+```bash
+php artisan rekhu:assistant:scan
+```
+
+Rekhu reads your app's routes, the inputs they validate and the code of their controller methods (never your records), and writes `assistant/actions.php`: every route it found, with a description for the assistant, which ones need the user's click, and which it would switch on. **Everything starts off**: open the file, set `'on' => true` on what the assistant may do, and commit it. A first draft of the project's knowledge waits on the project's Assistant tab in your Rekhu account for you to approve. See [The actions file](#the-actions-file).
+
+Or mark actions in the code yourself:
 
 ```php
 use Rekhu\Assistant\Attributes\Tool;
@@ -332,6 +340,44 @@ public function cancel(Order $order) { … }           // DELETE: the user confi
 | `label` | no | What the user reads while it runs and on its confirm and result cards: short, in their words, a text or one per language. Without it: "Working on it…" in their language. |
 | `inputs` | no | What an input means, in a few words: `['status' => 'paid, pending or failed']`. |
 | `fields` | no | Keep only these fields of what the action returns, for every record of a list: `['id', 'name', 'address.city']`. |
+
+### The actions file
+
+`php artisan rekhu:assistant:scan` writes `assistant/actions.php`, one entry per route (its name, or `"VERB uri"`), in the same shape as `#[Tool]`:
+
+```php
+return [
+    'orders.index' => [
+        'on' => true,
+        'description' => 'Lists the user\'s orders with number, product, status and total, newest first, 20 a page',
+        'fields' => ['id', 'number', 'status', 'total'],
+    ],
+    'orders.cancel' => [
+        'on' => true,
+        'description' => 'Cancels an order that has not shipped yet',
+        'confirm' => true,
+        'label' => ['en' => 'Cancelling the order', 'nl' => 'Bestelling annuleren', 'ar' => 'إلغاء الطلب'],
+    ],
+    'admin.users.destroy' => [
+        'on' => false,
+        'description' => 'Removes a user account',
+        'why_off' => 'removes accounts',
+    ],
+];
+```
+
+| Rule | |
+|---|---|
+| **The file is yours** | A new scan only sends routes the file does not have yet. They come in **off**, marked `'state' => 'new'` (and `'proposed' => 'on'` when Rekhu would offer them). It never changes an entry that is there, and marks entries whose route is gone with `'state' => 'gone'` instead of removing them. |
+| **Off stays off** | To keep an action out for good, leave it in the file with `'on' => false`. A removed entry comes back at the next scan as new, and off. |
+| **The code wins** | A route with `#[Tool]`, or in the config's `actions.include`, is never put in the file. If one is in both, the code is used and `rekhu:assistant:check` reports the double. |
+| **It grants nothing** | The file only says what the assistant may offer. Every action still runs as the signed-in user through your middleware, policies and validation, and a `DELETE` route always needs the user's click unless you set `'confirm' => false` (which `check` reports). |
+| **Kept in Rekhu** | The file each scan wrote is kept in your Rekhu account per environment and shown on the Assistant tab. `php artisan rekhu:assistant:scan --restore` writes the last one back. Without the file, the assistant offers only the actions in your code: less, never more. |
+| **Knowledge lives in the account** | The scan drafts the project's knowledge (what the app is, the words of its trade, its rules) on the Assistant tab, for you to approve, add to what is there, or discard. Nothing is written over your knowledge without you. |
+
+The scan also writes `assistant/questions.php`: a question a user would ask for each action, and the action it should use. `php artisan rekhu:assistant:test --user=12` asks them all as that user and shows which used the right action. Add your own, and `'says' => '…'` to check the answer's words too. Each question is a real model call.
+
+Options: `--only="orders.*"` scans part of the app, `--no-code` sends routes and inputs without the controller code, `--no-knowledge` skips the draft, `--dry-run` shows what would change. A scan is a few model calls, charged to the project like the assistant's own.
 
 ### Inputs and fields
 
@@ -801,8 +847,10 @@ The chat routes always answer errors as JSON, also those of your own middleware:
 | `php artisan rekhu:assistant` | Shows your credit, lists the actions, pages and help topics, says whether reports are on, and tests the connection to Rekhu. |
 | `php artisan rekhu:assistant --user=12` | The same, as one user: only what that user may use. |
 | `php artisan rekhu:assistant:try list_orders --user=12 --locale=ar --input='{"status":"open"}'` | Runs one action as that user and language, exactly as the chat does, and shows what the assistant reads of the result. |
-| `php artisan rekhu:assistant:check --user=12 --locale=ar` | Finds what makes the assistant answer badly: unclear actions, results it cannot read whole, lists without paging, records looked up by another key. Fails with problems, so it can run in CI. |
+| `php artisan rekhu:assistant:check --user=12 --locale=ar` | Finds what makes the assistant answer badly: unclear actions, results it cannot read whole, lists without paging, records looked up by another key; and in the actions file, entries without a route, actions defined in the code too, deleting without a click, and new entries waiting for you. Fails with problems, so it can run in CI. |
 | `php artisan make:assistant-tool OverdueInvoices` | Makes a [Tool class](#tool-classes) in `app/Assistant/Tools`. |
+| `php artisan rekhu:assistant:scan` | Rekhu reads the routes (never records) and proposes actions in [`assistant/actions.php`](#the-actions-file): new ones off, yours kept. `--only`, `--no-code`, `--no-knowledge`, `--dry-run`, `--restore` (with `--force`). |
+| `php artisan rekhu:assistant:test --user=12` | Asks the questions in `assistant/questions.php` as that user and checks each used the expected action. Fails when one does not, so it can run in CI. |
 
 ## When an answer is wrong
 
