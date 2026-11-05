@@ -13,9 +13,11 @@ use Rekhu\Assistant\Http\Requests\ChatRequest;
 use Rekhu\Assistant\Http\Requests\ReportRequest;
 use Rekhu\Assistant\Protocol;
 use Rekhu\Assistant\RekhuAssistant;
+use Rekhu\Assistant\Runtime\Attachments;
 use Rekhu\Assistant\Runtime\Conversation;
 use Rekhu\Assistant\Runtime\Quick;
 use Rekhu\Assistant\Runtime\Reports;
+use Rekhu\Assistant\Runtime\Scopes;
 use Rekhu\Assistant\Runtime\Turn;
 use Rekhu\Assistant\Support\Failures;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -31,13 +33,17 @@ final class ChatController
     public function send(ChatRequest $request): StreamedResponse
     {
         $visitor = IdentifyVisitor::of($request);
-        $conversation = Conversation::open($request->user(), $request->conversation(), $visitor);
+        $conversation = Conversation::open($request->user(), $request->conversation(), $visitor, Scopes::from($request));
+        // the files are kept before the answer streams: an upload is read from the request, which a stream may outlive
+        $files = Attachments::accept($conversation, $request->uploads());
 
-        return EventStream::respond(function (EventStream $stream) use ($request, $conversation, $visitor): void {
-            $stream->send(['type' => 'start', 'conversation' => $conversation->id, 'protocol' => Protocol::VERSION]);
+        return EventStream::respond(function (EventStream $stream) use ($request, $conversation, $visitor, $files): void {
+            $stream->send(array_filter(['type' => 'start', 'conversation' => $conversation->id, 'protocol' => Protocol::VERSION,
+                // what was attached, with what the package read of it, so the chat can show it under the message
+                'files' => $files ? array_map(fn ($a) => ['id' => $a['id'], 'name' => $a['name'], 'about' => Attachments::describe($a)], $files) : null]));
             try {
                 $answer = (new Turn($request, $conversation, $stream->sender(), $visitor))
-                    ->turn($request->message(), $request->confirmation(), $request->locale());
+                    ->turn($request->message(), $request->confirmation(), $request->locale(), array_column($files, 'id'));
                 // the id of the answer just given, so a live chat can report it without reading the history again
                 $stream->send(array_filter(['type' => 'done', 'message' => $answer]));
             } catch (Throwable $e) {
@@ -57,7 +63,7 @@ final class ChatController
         $visitor = IdentifyVisitor::of($request);
         // without a conversation: only the greeting, for a chat that opens fresh
         $asked = (string) $request->query('conversation');
-        $conversation = $asked !== '' ? Conversation::open($request->user(), $asked, $visitor) : null;
+        $conversation = $asked !== '' ? Conversation::open($request->user(), $asked, $visitor, Scopes::from($request)) : null;
 
         return response()->json(array_filter([
             'conversation' => $conversation?->id,
@@ -87,9 +93,17 @@ final class ChatController
         return response()->json(['message' => __('rekhu-assistant::messages.report_thanks')], 201);
     }
 
+    /** The signed-in user's conversations, newest first: id, title (their first question), scope, when. */
+    public function conversations(Request $request): JsonResponse
+    {
+        $owner = Conversation::owner($request->user(), null);
+
+        return response()->json(['conversations' => RekhuAssistant::store()->list($owner, Scopes::from($request), min(100, max(1, (int) $request->query('limit', 30))))]);
+    }
+
     public function forget(Request $request): Response
     {
-        Conversation::open($request->user(), (string) $request->input('conversation'), IdentifyVisitor::of($request))->forget();
+        Conversation::open($request->user(), (string) $request->input('conversation'), IdentifyVisitor::of($request), Scopes::from($request))->forget();
 
         return response()->noContent();
     }

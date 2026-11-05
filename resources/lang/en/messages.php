@@ -16,6 +16,7 @@ return [
     'limit_total' => 'The assistant is very busy today. Please try again tomorrow, or sign in.',
     'working' => 'Working on it…',
     'help' => 'Looking in the help…',
+    'web' => 'Looking it up on the web…',
     'report' => 'Report a problem',
     'report_title' => 'What went wrong?',
     'reason_wrong_answer' => 'The answer is wrong',

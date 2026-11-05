@@ -203,8 +203,13 @@ class Schema
                 'date', 'date_format' => $schema['format'] = 'date',
                 'uuid' => $schema['format'] = 'uuid',
                 'nullable' => $notes[] = 'may be empty',
+                // a file the user attached in the chat goes in by its id; the route receives it as an uploaded file
+                'file', 'image', 'mimes', 'mimetypes', 'extensions' => $schema['x-attachment'] = true,
                 default => null,
             };
+            if (in_array($name, ['mimes', 'extensions'], true) && $argument !== null) {
+                $notes[] = 'file types: '.$argument;
+            }
             if ($name === 'values' && $argument !== null) {
                 $notes[] = 'values: '.$argument;
             }
@@ -213,6 +218,14 @@ class Schema
             }
             if (in_array($name, ['max', 'min', 'between', 'size', 'exists', 'unique', 'regex', 'after', 'before', 'confirmed', 'required_if', 'required_with'], true)) {
                 $notes[] = $rule;
+            }
+        }
+        if (! empty($schema['x-attachment'])) {
+            unset($schema['x-attachment']);
+            $schema['type'] = $schema['type'] === 'array' ? 'array' : 'string';
+            $meaning = trim(($meaning ?? '').' The id (att_…) of a file the user attached in this chat; never a name or a path.');
+            if ($schema['type'] === 'array') {
+                $schema['items'] = ['type' => 'string'];
             }
         }
         $description = trim(($meaning ?? '').($notes ? ($meaning ? ' ' : '').'Rules: '.implode(', ', $notes) : ''));

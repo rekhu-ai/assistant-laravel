@@ -1,4 +1,4 @@
-/*! @rekhu/assistant-widget 0.5.2 · https://rekhu.com · generated from src/index.js, do not edit */
+/*! @rekhu/assistant-widget 0.6.0 · https://rekhu.com · generated from src/index.js, do not edit */
 (() => {
 /*
  * The Rekhu Assistant widget: a chat button and panel as <rekhu-assistant>, in its own shadow DOM so the app's CSS and
@@ -10,6 +10,7 @@
 
 const PROTOCOL = 1;
 
+const CLIP_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 12.5l-8.6 8.6a5 5 0 01-7.1-7.1l8.6-8.6a3.5 3.5 0 015 5l-8.6 8.6a2 2 0 01-2.8-2.8l7.9-7.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const CSS = `
 :host { all: initial; --c: #4f46e5; font: var(--rekhu-font, 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif); color: var(--rekhu-text, #111827); }
 * { box-sizing: border-box; }
@@ -41,6 +42,15 @@ header button:hover { opacity: 1; background: rgba(255,255,255,.15); }
 .card.done { border-color: #a7f3d0; background: #ecfdf5; } .card.failed { border-color: #fecaca; background: #fef2f2; }
 .card .file { display: flex; align-items: center; gap: 6px; font-size: 13px; word-break: break-all; } .card .file-size { color: #6b7280; white-space: nowrap; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.attach { display: inline-flex; align-items: center; justify-content: center; width: 34px; cursor: pointer; color: #6b7280; border-radius: 8px; }
+.attach:hover { background: #f3f4f6; color: #111827; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px; }
+.chips:empty { display: none; }
+.chip { font-size: 12px; background: #f3f4f6; border-radius: 999px; padding: 2px 4px 2px 10px; display: inline-flex; align-items: center; gap: 4px; }
+.chip button { border: 0; background: none; cursor: pointer; color: #6b7280; font: inherit; }
+.files { margin-top: 6px; font-size: 12px; opacity: .85; }
+.files li { margin-inline-start: 16px; }
+.card dl.rows { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 6px 0; }
 .btn { border: 0; border-radius: 8px; padding: 7px 12px; font: inherit; font-weight: 600; cursor: pointer; background: var(--c); color: #fff; text-decoration: none; display: inline-block; }
 .btn.light { background: #f3f4f6; color: #374151; } .btn.danger { background: #dc2626; }
 .btn:disabled { opacity: .5; cursor: default; }
@@ -321,6 +331,7 @@ const TEXTS = {
         report: 'Report a problem', reportTitle: 'What went wrong?', reportPlaceholder: 'What did you expect instead? (optional)',
         reportSend: 'Send report', reportThanks: 'Thanks, we will look into it.', reportFailed: 'Could not send the report.',
         download: 'Download',
+        attach: 'Attach files',
         debugAction: '{n} action', debugActions: '{n} actions', debugFailed: '{n} failed', debugOk: 'ok', debugError: 'failed',
         debugInput: 'Input', debugRead: 'What the assistant read', debugWhy: 'Why it failed', debugCopy: 'Copy', debugCopied: 'Copied',
     },
@@ -335,6 +346,7 @@ const TEXTS = {
         report: 'الإبلاغ عن مشكلة', reportTitle: 'ما الخطأ؟', reportPlaceholder: 'ماذا كنت تتوقع بدلاً من ذلك؟ (اختياري)',
         reportSend: 'إرسال البلاغ', reportThanks: 'شكراً، سنراجع ذلك.', reportFailed: 'تعذّر إرسال البلاغ.',
         download: 'تنزيل',
+        attach: 'إرفاق ملفات',
         debugAction: 'إجراء واحد', debugActions: '{n} إجراءات', debugFailed: 'فشل {n}', debugOk: 'تم', debugError: 'فشل',
         debugInput: 'المدخلات', debugRead: 'ما قرأه المساعد', debugWhy: 'سبب الفشل', debugCopy: 'نسخ', debugCopied: 'تم النسخ',
     },
@@ -349,6 +361,7 @@ const TEXTS = {
         report: 'Meld een probleem', reportTitle: 'Wat ging er mis?', reportPlaceholder: 'Wat had je verwacht? (optioneel)',
         reportSend: 'Verstuur melding', reportThanks: 'Bedankt, we kijken ernaar.', reportFailed: 'De melding kon niet worden verstuurd.',
         download: 'Downloaden',
+        attach: 'Bestanden toevoegen',
         debugAction: '{n} actie', debugActions: '{n} acties', debugFailed: '{n} mislukt', debugOk: 'gelukt', debugError: 'mislukt',
         debugInput: 'Invoer', debugRead: 'Wat de assistent las', debugWhy: 'Waarom het mislukte', debugCopy: 'Kopiëren', debugCopied: 'Gekopieerd',
     },
@@ -394,7 +407,15 @@ function createClient(options = {}) {
     };
     // the endpoint with a path added before its query string: /chat?x=1 → /chat/report?x=1
     const at = (path) => { const [base, query] = String(opts().endpoint).split('?'); return `${base.replace(/\/$/, '')}/${path}${query ? `?${query}` : ''}`; };
-    const request = async (method, body, accept = 'application/json', query = '', url = null) => fetch(url || opts().endpoint + query, { method, headers: await headers(accept), credentials: opts().credentials, body: body ? JSON.stringify(body) : undefined });
+    const request = async (method, body, accept = 'application/json', query = '', url = null) => {
+        const h = await headers(accept);
+        // files go as a form, as a browser sends an upload: the browser sets the boundary itself
+        const form = typeof FormData !== 'undefined' && body instanceof FormData;
+        if (form) delete h['Content-Type'];
+        return fetch(url || opts().endpoint + query, { method, headers: h, credentials: opts().credentials, body: form ? body : (body ? JSON.stringify(body) : undefined) });
+    };
+    // the chat of its own this widget talks to (config scopes), on every request
+    const scoped = (query) => (opts().scope ? `${query}${query.includes('?') || opts().endpoint.includes('?') ? '&' : '?'}scope=${encodeURIComponent(opts().scope)}` : query);
     const words = () => ({ ...TEXTS[language(opts().locale)], ...(opts().texts || {}) });
     const client = {
         /** The conversation id, kept per tab (or as "storage" says); null for a fresh chat. */
@@ -406,7 +427,7 @@ function createClient(options = {}) {
          */
         async history() {
             const id = client.conversation;
-            const response = await request('GET', null, 'application/json', id ? `${opts().endpoint.includes('?') ? '&' : '?'}conversation=${encodeURIComponent(id)}` : '');
+            const response = await request('GET', null, 'application/json', scoped(id ? `${opts().endpoint.includes('?') ? '&' : '?'}conversation=${encodeURIComponent(id)}` : ''));
             if (!response.ok) throw new Error(words().unavailable);
             return response.json();
         },
@@ -416,7 +437,15 @@ function createClient(options = {}) {
             const t = words();
             const locale = o.locale === undefined ? (navigator.language || null) : o.locale;
             const payload = typeof message === 'object' && message ? message : { message: String(message) };
-            const response = await request('POST', { ...payload, conversation: client.conversation, locale }, 'text/event-stream');
+            const fields = { ...payload, conversation: client.conversation, locale, ...(o.scope ? { scope: o.scope } : {}) };
+            let body = fields;
+            // files the user attached: the message goes as a form with them (files[])
+            if (Array.isArray(payload.files) && payload.files.length) {
+                body = new FormData();
+                Object.entries(fields).forEach(([k, v]) => { if (k !== 'files' && v !== null && v !== undefined) body.append(k, String(v)); });
+                payload.files.forEach((file) => body.append('files[]', file, file.name));
+            }
+            const response = await request('POST', body, 'text/event-stream');
             // the server says why in the user's language; our own words when it says nothing
             const said = async () => (response.headers.get('content-type') || '').includes('json') ? ((await response.json().catch(() => ({}))).message || '') : '';
             if (response.status === 401 || response.status === 419) throw Object.assign(new Error(t.signedOut), { status: response.status });
@@ -554,7 +583,8 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
 <section class="panel" part="panel" role="dialog" aria-label="${escape(s.name || t.name)}">
   <header part="header"><strong part="title">${escape(s.name || t.name)}</strong><button class="restart" part="restart" title="${escape(t.newTitle)}">${escape(t.new)}</button><button class="close" part="close" aria-label="${escape(t.close)}">✕</button></header>
   <div class="log" part="log" aria-live="polite"></div>
-  <form part="form"><textarea part="input" rows="1" placeholder="${escape(s.placeholder || t.placeholder)}" aria-label="${escape(t.message)}"></textarea><button class="btn" part="send" type="submit">${escape(t.send)}</button></form>
+  <div class="chips" part="files"></div>
+  <form part="form">${s.files === false ? '' : `<label class="attach" part="attach" title="${escape(t.attach)}" aria-label="${escape(t.attach)}"><input type="file" multiple hidden>${CLIP_ICON}</label>`}<textarea part="input" rows="1" placeholder="${escape(s.placeholder || t.placeholder)}" aria-label="${escape(t.message)}"></textarea><button class="btn" part="send" type="submit">${escape(t.send)}</button></form>
 </section>`;
         // "dir": the page's direction is followed by itself (the host inherits it); an explicit one wins
         if (s.dir === 'rtl' || s.dir === 'ltr') this.setAttribute('dir', s.dir);
@@ -563,6 +593,15 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         this.log = root.querySelector('.log');
         this.input = root.querySelector('textarea');
         this.sendButton = root.querySelector('form .btn');
+        // files waiting to go with the next message, shown as chips that can be taken off again
+        this.files = [];
+        this.chips = root.querySelector('.chips');
+        const picker = root.querySelector('.attach input');
+        if (picker) {
+            picker.addEventListener('change', () => { this.files.push(...picker.files); picker.value = ''; this.showFiles(); });
+            this.panel.addEventListener('dragover', (e) => { e.preventDefault(); });
+            this.panel.addEventListener('drop', (e) => { e.preventDefault(); this.files.push(...(e.dataTransfer?.files || [])); this.showFiles(); });
+        }
         root.querySelector('.launcher').addEventListener('click', () => this.toggle());
         root.querySelector('.close').addEventListener('click', () => this.toggle(false));
         root.querySelector('.restart').addEventListener('click', () => this.restart());
@@ -669,14 +708,20 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         return el;
     }
 
+    showFiles() {
+        this.chips.innerHTML = this.files.map((f, i) => `<span class="chip">${escape(f.name)}<button type="button" data-i="${i}" aria-label="✕">✕</button></span>`).join('');
+        this.chips.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { this.files.splice(Number(b.dataset.i), 1); this.showFiles(); }));
+    }
+
     send(asked = null) {
         const text = (asked ?? this.input.value).trim();
-        if (!text || this.busy) return;
-        if (asked === null) { this.input.value = ''; this.input.style.height = 'auto'; }
+        const files = asked === null ? this.files.splice(0) : [];
+        if ((!text && !files.length) || this.busy) return;
+        if (asked === null) { this.input.value = ''; this.input.style.height = 'auto'; this.showFiles(); }
         // the first message replaces the quick questions
         this.log.querySelector('.quick')?.remove();
-        this.add('user', markdown(text));
-        this.post({ message: text });
+        this.lastUser = this.add('user', markdown(text) + (files.length ? `<ul class="files">${files.map((f) => `<li>${escape(f.name)}</li>`).join('')}</ul>` : ''));
+        this.post(files.length ? { message: text, files } : { message: text });
     }
 
     emit(name, detail) {
@@ -694,6 +739,11 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         const endStep = () => { if (step) { step.classList.add('over'); step = null; } };
         try {
             await this.client.send(payload, (event) => {
+                // what the server read of the files, under the user's message
+                if (event.type === 'start' && Array.isArray(event.files) && event.files.length && this.lastUser) {
+                    this.lastUser.querySelector('.files')?.remove();
+                    this.lastUser.insertAdjacentHTML('beforeend', `<ul class="files">${event.files.map((f) => `<li>${escape(f.name)} · ${escape(f.about || '')}</li>`).join('')}</ul>`);
+                }
                 if (event.type === 'text') {
                     endStep();
                     if (!bubble) { bubble = this.add('bot', ''); text = ''; }
@@ -807,12 +857,43 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         link();
     }
 
+    /**
+     * A card of the app's own kind (Card::make on the server): drawn by the renderer the page registered for that kind
+     * (settings.cards[kind] or window.RekhuAssistant.cards[kind], a function of (data, card) giving HTML or an element),
+     * else as a simple box: its title, text, rows ({label, value}) and buttons ({label, message}, which send that message).
+     */
+    ownCard(event) {
+        const data = event.data || {};
+        const shared = typeof window !== 'undefined' && window.RekhuAssistant ? (window.RekhuAssistant.cards || {}) : {};
+        const render = (this.settings.cards || {})[event.kind] || shared[event.kind];
+        const el = this.add(`card own ${escape(event.kind)}`, '');
+        el.setAttribute('part', `card ${event.kind}`);
+        if (typeof render === 'function') {
+            const out = render(data, event);
+            if (out instanceof Element) el.appendChild(out); else el.innerHTML = String(out ?? '');
+        } else {
+            const rows = Array.isArray(data.rows) ? data.rows.map((r) => `<dt>${escape(r.label ?? '')}</dt><dd>${escape(r.value ?? '')}</dd>`).join('') : '';
+            const buttons = Array.isArray(data.buttons) ? data.buttons.filter((b) => b && b.label && b.message) : [];
+            el.innerHTML = `${event.title || data.title ? `<div class="title">${escape(event.title || data.title)}</div>` : ''}${data.text ? `<div class="detail">${escape(data.text)}</div>` : ''}${rows ? `<dl class="rows">${rows}</dl>` : ''}`
+                + (buttons.length ? `<div class="row">${buttons.map((b, i) => `<button class="btn ${i ? 'light' : ''}" data-say="${i}">${escape(b.label)}</button>`).join('')}</div>` : '');
+            el.querySelectorAll('[data-say]').forEach((b) => b.addEventListener('click', () => {
+                if (this.busy) return;
+                this.send(String(buttons[Number(b.dataset.say)].message));
+            }));
+        }
+        this.emit('card', event);
+    }
+
     /** The arrow on a link button points the way the text reads. */
     get arrow() {
         return getComputedStyle(this).direction === 'rtl' ? '←' : '→';
     }
 
     card(event) {
+        if (!['page', 'done', 'failed', 'file', 'confirm'].includes(event.kind)) {
+            this.ownCard(event);
+            return;
+        }
         if (event.kind === 'page') {
             this.add('card', `<div class="row"><a class="btn" href="${escape(event.url)}" target="_top">${escape(event.label)} ${this.arrow}</a></div>`);
         }
@@ -872,5 +953,5 @@ function mount(options = {}) {
 }
 
 define();
-window.RekhuAssistant = { mount, define, createClient, markdown, renderMessage, renderChart, PROTOCOL };
+window.RekhuAssistant = { mount, define, createClient, markdown, renderMessage, renderChart, PROTOCOL, cards: (window.RekhuAssistant && window.RekhuAssistant.cards) || {} };
 })();

@@ -45,9 +45,11 @@ class Dispatcher
     ];
 
     /** ['ok' => true, 'result' => …] or ['ok' => false, 'error' => …, 'errors'?] */
-    public static function run(array $action, array $input, Request $outer): array
+    public static function run(array $action, array $input, Request $outer, ?Conversation $conversation = null): array
     {
-        $outcome = isset($action['class']) ? self::tool($action['class'], $input, $outer) : self::route($action['route'], $input, $outer);
+        // files the user attached go in by their id (att_…): the action gets them as uploaded files, as from a form
+        [$input, $files] = self::files($input, $conversation);
+        $outcome = isset($action['class']) ? self::tool($action['class'], $input + $files, $outer) : self::route($action['route'], $input, $outer, $files);
         if ($outcome['ok'] && ($action['fields'] ?? []) && ($outcome['result']['status'] ?? null) !== 'file') {
             $outcome['result'] = Shape::pick($outcome['result'], $action['fields']);
         }
@@ -55,7 +57,31 @@ class Dispatcher
         return $outcome;
     }
 
-    private static function route(Route $route, array $input, Request $outer): array
+    /** The input without the attachment ids, and the files they stand for, under the same names. */
+    private static function files(array $input, ?Conversation $conversation): array
+    {
+        $files = [];
+        if (! $conversation || ! $conversation->attachments) {
+            return [$input, $files];
+        }
+        $isId = fn ($v) => is_string($v) && isset($conversation->attachments[$v]);
+        foreach ($input as $field => $value) {
+            if ($isId($value)) {
+                $file = Attachments::upload($conversation, $value);
+                if ($file) {
+                    $files[$field] = $file;
+                    unset($input[$field]);
+                }
+            } elseif (is_array($value) && $value && array_is_list($value) && count(array_filter($value, $isId)) === count($value)) {
+                $files[$field] = array_values(array_filter(array_map(fn ($id) => Attachments::upload($conversation, $id), $value)));
+                unset($input[$field]);
+            }
+        }
+
+        return [$input, $files];
+    }
+
+    private static function route(Route $route, array $input, Request $outer, array $files = []): array
     {
         $parameters = array_intersect_key($input, array_flip($route->parameterNames()));
         $body = array_diff_key($input, $parameters);
@@ -69,9 +95,18 @@ class Dispatcher
         // the input goes as a JSON body (numbers stay numbers), or as the query of a GET; the outer request's own body never comes along
         $server = array_merge($outer->server->all(), ['HTTP_ACCEPT' => 'application/json', 'HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest', 'CONTENT_TYPE' => 'application/json']);
         unset($server['CONTENT_LENGTH'], $server['HTTP_CONTENT_LENGTH']);
-        $inner = $verb === 'GET'
-            ? Request::create($url, 'GET', $body, [], [], $server)
-            : Request::create($url, $verb, [], [], [], $server, json_encode((object) $body));
+        if ($files && $verb !== 'GET') {
+            // with files the body is a form, as a browser sends an upload; PUT and PATCH go as POST with _method, as Laravel's forms do
+            $server['CONTENT_TYPE'] = 'multipart/form-data';
+            $inner = Request::create($url, in_array($verb, ['PUT', 'PATCH', 'DELETE'], true) ? 'POST' : $verb, $body + (in_array($verb, ['PUT', 'PATCH', 'DELETE'], true) ? ['_method' => $verb] : []), [], $files, $server);
+            if (in_array($verb, ['PUT', 'PATCH', 'DELETE'], true)) {
+                $inner->setMethod($verb);
+            }
+        } else {
+            $inner = $verb === 'GET'
+                ? Request::create($url, 'GET', $body, [], [], $server)
+                : Request::create($url, $verb, [], [], [], $server, json_encode((object) $body));
+        }
         // an API request has no session: the action uses the app's session store, which redirect()->with() writes to, so
         // a controller that flashes a message still works; nothing saves it, and it is emptied again afterwards
         $stateless = ! $outer->hasSession();

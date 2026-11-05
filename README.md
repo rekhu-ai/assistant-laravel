@@ -50,13 +50,16 @@
 9. [Help](#help)
 10. [A public chat for visitors](#a-public-chat-for-visitors)
 11. [Reports](#reports)
-12. [Projects, usage and limits](#projects-usage-and-limits)
-13. [How it works](#how-it-works)
-14. [Security](#security)
-15. [Configuration](#configuration): [your own routes](#your-own-routes) · [translations](#translations)
-16. [Commands](#commands)
-17. [When an answer is wrong](#when-an-answer-is-wrong)
-18. [Troubleshooting](#troubleshooting)
+12. [Reselling to your customers](#reselling-to-your-customers): [usage per answer](#usage-per-answer) · [the model per plan](#the-model-per-plan) · [chats of their own](#chats-of-their-own) · [cards of your own](#cards-of-your-own) · [your own conversation store](#your-own-conversation-store)
+13. [Files your users attach](#files-your-users-attach)
+14. [Looking things up on the internet](#looking-things-up-on-the-internet)
+15. [Projects, usage and limits](#projects-usage-and-limits)
+16. [How it works](#how-it-works)
+17. [Security](#security)
+18. [Configuration](#configuration): [your own routes](#your-own-routes) · [translations](#translations)
+19. [Commands](#commands)
+20. [When an answer is wrong](#when-an-answer-is-wrong)
+21. [Troubleshooting](#troubleshooting)
 
 ## Requirements
 
@@ -715,6 +718,113 @@ await chat.report({ message: answer, reason: 'wrong_answer', comment: 'It was 41
 ```
 
 When Rekhu cannot be reached, the user is still thanked; the failure goes to your log and the report is tried once more, on your queue when the app has one. `php artisan rekhu:assistant` says whether reports are on and whether Rekhu takes them.
+
+## Reselling to your customers
+
+Rekhu meters every model call for your account. To charge **your** customers in your own way, per answer, by plan, from their credit, the package gives you what each answer used, lets the plan choose the model, and keeps conversations where you want them.
+
+### Usage per answer
+
+After every answer `Rekhu\Assistant\Events\AnswerCompleted` fires with what it used:
+
+```php
+use Rekhu\Assistant\Events\AnswerCompleted;
+
+Event::listen(AnswerCompleted::class, function (AnswerCompleted $e) {
+    AssistantTurn::create([
+        'tenant_id' => $e->tenant['id'], 'user_id' => $e->user?->getAuthIdentifier(), 'conversation' => $e->conversation,
+        'model' => $e->model, 'input_tokens' => $e->inputTokens, 'output_tokens' => $e->outputTokens,
+        'cache_read_tokens' => $e->cacheReadTokens, 'cache_write_tokens' => $e->cacheWriteTokens, 'calls' => $e->calls,
+    ]);
+    // charge the plan's credit, count against its limit, …
+});
+```
+
+It has the user (or the visitor), the tenant, the conversation and answer id, the scope, the model (by its name in your Rekhu account), input, output, cache-read and cache-write tokens over all the model calls of the answer, the number of calls, the actions it ran or asked to confirm, the stop reason and the time. It also fires for an answer that broke off halfway (`$e->failed`): those calls were made. Check credit or a plan before a turn with your own middleware on the chat route.
+
+### The model per plan
+
+```php
+RekhuAssistant::modelUsing(fn ($user, $request, $scope) => $user?->team?->plan?->assistant_model);
+```
+
+The model by its name in your Rekhu account; `null` falls back to `REKHU_ASSISTANT_MODEL`, then the account's default. Rekhu refuses a model your project does not allow.
+
+### Chats of their own
+
+One app, several chats: a marketplace chat next to the main one, a support chat. Each has its own instructions and only the actions its patterns name:
+
+```php
+'scopes' => [
+    'marketplace' => [
+        'instructions' => 'You help resellers compare suppliers on price and delivery.',
+        'actions' => ['market.*', 'compare_*', 'products'],   // action names, route names or addresses
+        'model' => null,                                       // or a model of its own
+        'web' => [...],                                        // internet lookups of its own, see below
+    ],
+],
+```
+
+The chat request sends `scope=marketplace` (the widget: `scope: 'marketplace'`). Its conversations are its own.
+
+### Cards of your own
+
+An action can show a card of your own under the answer: a price with delivery rows, a wizard step, a choice of products. Return it with the result:
+
+```php
+use Rekhu\Assistant\Card;
+
+return Card::attach(['total' => 412.50], Card::make('price', [
+    'rows' => [['label' => 'Standard, 5 days', 'value' => '€ 389'], ['label' => 'Express, 2 days', 'value' => '€ 412.50']],
+    'buttons' => [['label' => 'Choose for me', 'message' => 'Choose the cheapest delivery that arrives this week']],
+], '1000 flyers A5'));
+```
+
+The chat sends `{type: card, kind: price, title, data}`. Your own front end draws it by its kind; the widget draws it with your renderer, `window.RekhuAssistant.cards.price = (data) => '…html…'`, or else as a box with its title, text, rows and buttons (a button sends its message). The assistant only hears that the card is shown. The kinds `confirm`, `page`, `file`, `done` and `failed` are the package's own.
+
+### Your own conversation store
+
+By default conversations live in your cache for `conversation_minutes`. To keep them in your own tables, with a list in your own chat panel, implement `Rekhu\Assistant\Contracts\ConversationStore` (`get`, `put`, `forget`, `list`) and name it:
+
+```php
+RekhuAssistant::conversationsUsing(App\Assistant\DatabaseConversations::class);
+```
+
+`put()` gets the conversation's data as the package keeps it, and who it is about: the user, the visitor, the tenant, the scope and a title (the first question). `GET …/chat/conversations` lists the signed-in user's conversations from your store, newest first.
+
+## Files your users attach
+
+Users attach files in the chat: print files (PDF, AI, EPS, PSD, TIFF, JPG, PNG, SVG), lists (CSV, Excel), documents, and **zips of them, which are unpacked**. The widget has a paperclip and takes drag and drop; your own front end sends `files[]` with the message as a form.
+
+- **What the assistant knows of each file:** its type and size, and what can be read from it: a PDF's pages, page size, trim and bleed box and whether it is locked; a picture's pixels, resolution (dpi), the size it prints at that resolution and its colour mode (RGB, CMYK, greyscale); an EPS or AI file's box; a CSV's lines. With Imagick on the server it reads more (TIFF, PSD, exact page counts). Small pictures and PDFs it also sees itself.
+- **Into an action:** a route that takes an upload (`'artwork' => 'required|file|mimes:pdf'`) gets the file as an `UploadedFile`, exactly as from a form: the assistant passes the file's id, never a path. Tool classes get the same.
+- **A zip** is unpacked safely: never outside its folder, no hidden or Mac resource files, only the allowed types, at most 200 files and 300 MB (`files.upload.zip`). What was left out is said.
+- **Kept** on your disk (`files.upload.disk`, `path`) with the conversation, and removed with it. One file is at most `files.upload.max_mb` (50), one message `max_files` (10). Visitors attach nothing unless `guests.files` is on.
+
+## Looking things up on the internet
+
+The assistant can search and read pages, **locked to what you allow**:
+
+```php
+'web' => [
+    'enabled' => true,
+    'purpose' => 'Public paper specifications and supplier prices',
+    'sites' => ['www.antalis.nl', '*.papyrus.com'],
+    'search' => true,       // search those sites (charged per search by Rekhu)
+    'read' => true,         // read a page of those sites
+    'per_answer' => 3,
+    'per_day' => 50,        // per user
+],
+```
+
+| The lock | |
+|---|---|
+| **Only your sites** | Nothing happens without a list of sites. Searches are limited to them; a page of another site is refused, also when a page redirects there. |
+| **Only reading** | A plain GET, without the user's cookies, tokens or your app's keys. It never fills in a form, signs in or posts anything. |
+| **Never inside your network** | localhost, private and link-local ranges and cloud metadata addresses are refused, whatever name points to them. Only the usual web ports. |
+| **Limits** | At most `per_answer` lookups in one answer and `per_day` per user a day; pages are cut at `max_kb`, text only. |
+| **Pages are data** | What a page says is information for the answer, never an instruction to the assistant. |
+| **Per chat** | A scope can have a `web` of its own, or none. Visitors only with `guests.web`. |
 
 ## Projects, usage and limits
 

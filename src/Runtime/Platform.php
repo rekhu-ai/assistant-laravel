@@ -18,7 +18,7 @@ class Platform
     /** $visitor: the anonymous id of a visitor in the public chat, who has no user. */
     public function __construct(private ?Authenticatable $user, private string $conversation, private ?string $visitor = null) {}
 
-    /** The message as the provider returns it: ['content' => blocks, 'stop_reason' => …]. */
+    /** The message as the provider returns it: ['content' => blocks, 'stop_reason' => …, 'model' => …, 'usage' => […]]. */
     public function message(array $body, Closure $onText): array
     {
         $key = RekhuAssistant::key();
@@ -86,6 +86,15 @@ class Platform
         $blocks = [];
         $partial = [];
         $stop = null;
+        $model = null;
+        $usage = ['input_tokens' => 0, 'output_tokens' => 0, 'cache_read_input_tokens' => 0, 'cache_creation_input_tokens' => 0];
+        $count = function (array $from) use (&$usage): void {
+            foreach (array_keys($usage) as $k) {
+                if (isset($from[$k]) && is_numeric($from[$k])) {
+                    $usage[$k] = max($usage[$k], (int) $from[$k]);
+                }
+            }
+        };
         $buffer = '';
         while (! $stream->eof()) {
             $buffer .= $stream->read(4096);
@@ -102,6 +111,11 @@ class Platform
                     }
                     $i = $data['index'] ?? null;
                     switch ($data['type'] ?? '') {
+                        case 'message_start':
+                            // the model by its name in the Rekhu account, and the tokens read so far
+                            $model = $data['message']['model'] ?? $model;
+                            $count((array) ($data['message']['usage'] ?? []));
+                            break;
                         case 'content_block_start':
                             $blocks[$i] = $data['content_block'];
                             $partial[$i] = '';
@@ -128,6 +142,7 @@ class Platform
                             break;
                         case 'message_delta':
                             $stop = $data['delta']['stop_reason'] ?? $stop;
+                            $count((array) ($data['usage'] ?? []));
                             break;
                         case 'error':
                             throw new RuntimeException('the model stopped: '.($data['error']['message'] ?? 'unknown error'));
@@ -137,6 +152,6 @@ class Platform
         }
         ksort($blocks);
 
-        return ['content' => array_values($blocks), 'stop_reason' => $stop];
+        return ['content' => array_values($blocks), 'stop_reason' => $stop, 'model' => $model, 'usage' => $usage];
     }
 }

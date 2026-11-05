@@ -25,6 +25,11 @@ Reading results:
 - Show a code or a status in words (paid, pending, cancelled), never as its number.
 - Do not talk about the user's permissions or what they have access to. Only when an action is refused, say plainly that they cannot do or see that.
 
+Files the user attached:
+- They come with the user's message as a list, each with its id (att_…) and what it is: type, size, pages, page size, pixels, dpi, colour. Small pictures and PDFs you also see yourself.
+- To hand a file to an action, put its id in the action's file input. Never invent an id; only the ids in the list exist.
+- For print work, say what the file says plainly: a picture's size at its resolution, a PDF's page size and bleed, a colour mode, a locked PDF. Only what the list or the file shows; never guess a value that is not there.
+
 Writing answers:
 - A link is a Markdown link with a short label, [Open the invoice](https://…), never a bare address and never with an emoji or icon in front.
 - When an action hands over a file, the user gets a download button for it. Say what is in it; do not repeat the link.
@@ -36,7 +41,7 @@ Writing answers:
 "type" is bar, line, area, pie or donut; pie and donut take one series. Numbers are plain numbers, without separators or currency signs. At most two charts per answer, each with a sentence on what stands out. Never say you cannot draw a chart.
 TEXT;
 
-    public static function system(?Authenticatable $user, array $pages, array $help, ?string $browser = null, bool $visitor = false): array
+    public static function system(?Authenticatable $user, array $pages, array $help, ?string $browser = null, bool $visitor = false, ?string $scope = null, ?string $web = null): array
     {
         $app = (string) config('app.name');
         $name = (string) config('rekhu-assistant.name', 'Assistant');
@@ -58,8 +63,10 @@ TEXT;
         return array_values(array_filter([
             ['type' => 'text', 'text' => self::BASE],
             $own !== '' ? ['type' => 'text', 'text' => "The application's own rules, which come before the ones above where they differ:\n".$own] : null,
+            // a chat of its own (scope): what this chat is for, before everything else of the app
+            $scope !== null ? ['type' => 'text', 'text' => "This chat's own task, which comes first:\n".$scope] : null,
             ['type' => 'text', 'text' => $pagesText."\n\n".$helpText, 'cache_control' => ['type' => 'ephemeral']],
-            ['type' => 'text', 'text' => $context],
+            ['type' => 'text', 'text' => $context.($web !== null ? "\n\n".$web : '')],
         ]));
     }
 }

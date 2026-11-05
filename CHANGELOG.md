@@ -2,6 +2,17 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.11.0 · 5 November 2026
+
+- **Usage per answer.** `AnswerCompleted` fires after every answer with the model, the input, output, cache-read and cache-write tokens of all its model calls, the number of calls, the actions, the tenant, user, conversation and scope: what an app needs to charge its own customers per answer. It also fires for an answer that broke off.
+- **The model per plan.** `RekhuAssistant::modelUsing(fn ($user, $request, $scope) => …)` picks the model per request, by its name in the Rekhu account.
+- **Chats of their own.** `scopes` in the config: each with its own instructions, its own actions (by pattern), its own model and web lookups; the chat request sends `scope`.
+- **Cards of your own.** `Card::make('price', $data)` in an action's result shows a card of the app's own kind; the widget draws it with a renderer the page registers, or as a box with title, text, rows and buttons.
+- **Your own conversation store.** `RekhuAssistant::conversationsUsing()` with a `ConversationStore` keeps conversations in the app's own tables; `GET …/chat/conversations` lists a user's conversations. The cache stays the default, with the same keys as before.
+- **Files users attach.** Print files, pictures, lists, documents and zips (unpacked safely) with the message; the assistant reads pages, page and trim size, pixels, dpi, print size and colour mode, sees small pictures and PDFs itself, and hands a file to an action's upload field by its id.
+- **Looking things up on the internet,** locked: only the sites the config names, reading only (no cookies, tokens or forms), never an address inside the network, limits per answer and per user a day, pages treated as data.
+- Widget 0.6.0: paperclip and drag and drop, cards of the app's own kind, `scope`.
+
 ## 0.10.0 · 5 November 2026
 
 - **Rekhu proposes the actions.** `php artisan rekhu:assistant:scan` reads the app's routes, the inputs they validate and the code of their controller methods (never its records), and writes `assistant/actions.php`: per route a description for the assistant, whether it needs the user's click, its inputs, the fields worth reading and a label, and whether Rekhu would offer it. Everything comes in off; the developer switches on what the assistant may do.

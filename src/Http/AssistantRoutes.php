@@ -44,6 +44,8 @@ class AssistantRoutes
                 Route::post('/', [ChatController::class, 'send'])->middleware('throttle:30,1')->name('chat');
                 Route::get('/', [ChatController::class, 'history'])->name('history');
                 Route::delete('/', [ChatController::class, 'forget'])->name('forget');
+                // the user's conversations, newest first, for a chat panel with a list (?scope= for a chat of its own)
+                Route::get('conversations', [ChatController::class, 'conversations'])->name('conversations');
                 if (Reports::enabled()) {
                     Route::post('report', [ChatController::class, 'report'])->name('report');
                 }

@@ -16,6 +16,7 @@ return [
     'limit_total' => 'De assistent is vandaag erg druk. Probeer het morgen opnieuw, of log in.',
     'working' => 'Ik ben ermee bezig…',
     'help' => 'Ik zoek in de hulp…',
+    'web' => 'Ik zoek het op internet op…',
     'report' => 'Meld een probleem',
     'report_title' => 'Wat ging er mis?',
     'reason_wrong_answer' => 'Het antwoord klopt niet',

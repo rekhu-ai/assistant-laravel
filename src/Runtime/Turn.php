@@ -5,14 +5,18 @@ namespace Rekhu\Assistant\Runtime;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Rekhu\Assistant\Card;
 use Rekhu\Assistant\Catalogue\Actions;
 use Rekhu\Assistant\Catalogue\Pages;
+use Rekhu\Assistant\Events\AnswerCompleted;
 use Rekhu\Assistant\Http\Requests\ChatRequest;
+use Rekhu\Assistant\RekhuAssistant;
 
 /**
  * One turn of the conversation: the user's words (or their click on a confirm button) in, the model's answer out, with
  * the actions, pages and help it used along the way. Events are handed to $emit as they happen:
- *   text {text}  ·  step {label}  ·  card {kind: page|confirm|done|failed|file, …}  ·  debug {action, input, ok, …}
+ *   text {text}  ·  step {label}  ·  card {kind: page|confirm|done|failed|file, or the app's own kind with its data}  ·  debug {action, input, ok, …}
+ * When the answer is done, AnswerCompleted carries what it used (model, tokens, calls, actions) for the app's own charging.
  * Every question, action and answer is written to the chat log; debug events go only to signed-in users, and only
  * when debug is on (by default in the local environment).
  */
@@ -33,90 +37,132 @@ class Turn
 
     private ?string $userRef;
 
+    private ?string $scope;
+
+    /** The web lookups this chat may make (config web, or its scope's), and how many this answer made. */
+    private array $web;
+
+    private int $lookups = 0;
+
+    /** What this answer used, for AnswerCompleted. */
+    private array $used = ['model' => null, 'input' => 0, 'output' => 0, 'cache_read' => 0, 'cache_write' => 0, 'actions' => []];
+
     /** $visitor: the anonymous id of a visitor in the public chat; they have no user and only the guest actions. */
     public function __construct(private Request $request, private Conversation $conversation, private Closure $emit, private ?string $visitor = null)
     {
         $user = $visitor === null ? $request->user() : null;
-        $this->actions = Actions::for($user);
+        $this->scope = Scopes::from($request);
+        $this->web = Web::settings($this->scope, $visitor !== null);
+        // a chat of its own (scope) has only the actions it names
+        $this->actions = Scopes::filter(Actions::for($user), $this->scope);
         $this->pages = Pages::for($user);
         $this->help = Help::topics();
         $this->userRef = $user ? (string) $user->getAuthIdentifier() : null;
         $this->debug = $visitor === null && (bool) (config('rekhu-assistant.debug') ?? app()->environment('local'));
     }
 
-    /** Returns the id of the answer when it has words the user sees, else null. */
-    public function turn(string $text, ?string $confirm = null, ?string $browser = null): ?string
+    /**
+     * Returns the id of the answer when it has words the user sees, else null. $files: the ids of the attachments the
+     * user sent with this message (Attachments::accept).
+     */
+    public function turn(string $text, ?string $confirm = null, ?string $browser = null, array $files = []): ?string
     {
+        $started = hrtime(true);
         if ($confirm !== null) {
             $this->confirmed($confirm);
         } else {
-            $this->conversation->messages[] = ['role' => 'user', 'content' => Str::limit(trim($text), ChatRequest::maxMessage($this->visitor !== null), ''), 'id' => $this->conversation->nextId()];
+            $this->conversation->messages[] = array_filter(['role' => 'user', 'content' => Str::limit(trim($text), ChatRequest::maxMessage($this->visitor !== null), ''), 'id' => $this->conversation->nextId(), 'attachments' => $files ?: null], fn ($v) => $v !== null);
             ChatLog::question($this->conversation, trim($text), $this->userRef, $this->visitor);
         }
         $answer = $this->conversation->nextId();
         $user = $this->visitor === null ? $this->request->user() : null;
         $platform = new Platform($user, $this->conversation->id, $this->visitor);
-        $system = Prompt::system($user, $this->pages, $this->help, $browser, $this->visitor !== null);
+        $system = Prompt::system($user, $this->pages, $this->help, $browser, $this->visitor !== null, Scopes::instructions($this->scope), Web::prompt($this->web));
+        $model = RekhuAssistant::model($user, $this->request, $this->scope);
         $tools = $this->tools();
         $steps = $this->visitor === null ? (int) config('rekhu-assistant.max_steps', 8) : (int) config('rekhu-assistant.guests.max_steps', 4);
 
         $stop = null;
         $chars = 0;
         $calls = 0;
-        for ($step = 0; $step < $steps; $step++) {
-            $calls++;
-            $message = $platform->message([
-                'model' => config('rekhu-assistant.model'),
-                'max_tokens' => (int) config('rekhu-assistant.max_tokens', 16000),
-                'system' => $system,
-                'tools' => $tools,
-                'messages' => self::cached($this->conversation->forModel()),
-            ], fn ($delta) => ($this->emit)(['type' => 'text', 'text' => $delta]));
-            $stop = $message['stop_reason'];
-            $content = $message['content'];
-            if ($stop === 'max_tokens') {
-                // an action cut off halfway never runs: the answer keeps its text, and the model goes on in smaller steps
-                $content = array_values(array_filter($content, fn ($block) => ($block['type'] ?? '') !== 'tool_use'));
-            }
-            if (array_filter($content, fn ($block) => in_array($block['type'] ?? '', ['text', 'tool_use'], true))) {
-                $this->conversation->messages[] = ['role' => 'assistant', 'content' => $content, 'id' => $answer];
-            }
-            $chars += array_sum(array_map(fn ($block) => ($block['type'] ?? '') === 'text' ? mb_strlen((string) $block['text']) : 0, $content));
-            if ($stop === 'max_tokens') {
-                $this->conversation->report(self::CUT_OFF);
+        $failed = true;
+        try {
+            for ($step = 0; $step < $steps; $step++) {
+                $calls++;
+                $message = $platform->message([
+                    'model' => $model,
+                    'max_tokens' => (int) config('rekhu-assistant.max_tokens', 16000),
+                    'system' => $system,
+                    'tools' => $tools,
+                    'messages' => self::cached($this->conversation->forModel()),
+                ], fn ($delta) => ($this->emit)(['type' => 'text', 'text' => $delta]));
+                $stop = $message['stop_reason'];
+                $content = $message['content'];
+                $this->count($message);
+                if ($stop === 'max_tokens') {
+                    // an action cut off halfway never runs: the answer keeps its text, and the model goes on in smaller steps
+                    $content = array_values(array_filter($content, fn ($block) => ($block['type'] ?? '') !== 'tool_use'));
+                }
+                if (array_filter($content, fn ($block) => in_array($block['type'] ?? '', ['text', 'tool_use'], true))) {
+                    $this->conversation->messages[] = ['role' => 'assistant', 'content' => $content, 'id' => $answer];
+                }
+                $chars += array_sum(array_map(fn ($block) => ($block['type'] ?? '') === 'text' ? mb_strlen((string) $block['text']) : 0, $content));
+                if ($stop === 'max_tokens') {
+                    $this->conversation->report(self::CUT_OFF);
 
-                continue;
-            }
-            if ($stop !== 'tool_use') {
-                break;
-            }
-            $results = [];
-            foreach ($message['content'] as $block) {
-                if (($block['type'] ?? '') !== 'tool_use') {
                     continue;
                 }
-                $started = hrtime(true);
-                $outcome = $this->call($block['name'], (array) $block['input']);
-                $this->trace($block['name'], (array) $block['input'], $outcome, $started);
-                $results[] = [
-                    'type' => 'tool_result',
-                    'tool_use_id' => $block['id'],
-                    'content' => Shape::json(Shape::fit($outcome['ok'] ? $outcome['result'] : array_filter(['error' => $outcome['error'], 'errors' => $outcome['errors'] ?? null]), self::RESULT_LIMIT)),
-                ] + ($outcome['ok'] ? [] : ['is_error' => true]);
+                if ($stop !== 'tool_use') {
+                    break;
+                }
+                $results = [];
+                foreach ($message['content'] as $block) {
+                    if (($block['type'] ?? '') !== 'tool_use') {
+                        continue;
+                    }
+                    $started = hrtime(true);
+                    $outcome = $this->call($block['name'], (array) $block['input']);
+                    $this->trace($block['name'], (array) $block['input'], $outcome, $started);
+                    $results[] = [
+                        'type' => 'tool_result',
+                        'tool_use_id' => $block['id'],
+                        'content' => Shape::json(Shape::fit($outcome['ok'] ? $outcome['result'] : array_filter(['error' => $outcome['error'], 'errors' => $outcome['errors'] ?? null]), self::RESULT_LIMIT)),
+                    ] + ($outcome['ok'] ? [] : ['is_error' => true]);
+                }
+                $this->conversation->messages[] = ['role' => 'user', 'content' => $results];
             }
-            $this->conversation->messages[] = ['role' => 'user', 'content' => $results];
-        }
-        if (in_array($stop, ['tool_use', 'max_tokens'], true)) {
-            // the steps of one answer ran out before the work was done: the user reads where it stopped and how to go on
-            $said = __('rekhu-assistant::messages.too_big');
-            ($this->emit)(['type' => 'text', 'text' => ($chars > 0 ? "\n\n" : '').$said]);
-            $this->conversation->messages[] = ['role' => 'assistant', 'content' => [['type' => 'text', 'text' => $said]], 'id' => $answer];
-            $chars += mb_strlen($said);
-        }
-        $this->conversation->save();
-        ChatLog::answer($this->conversation, $calls, $chars, $stop, $this->userRef, $this->visitor);
+            if (in_array($stop, ['tool_use', 'max_tokens'], true)) {
+                // the steps of one answer ran out before the work was done: the user reads where it stopped and how to go on
+                $said = __('rekhu-assistant::messages.too_big');
+                ($this->emit)(['type' => 'text', 'text' => ($chars > 0 ? "\n\n" : '').$said]);
+                $this->conversation->messages[] = ['role' => 'assistant', 'content' => [['type' => 'text', 'text' => $said]], 'id' => $answer];
+                $chars += mb_strlen($said);
+            }
+            $this->conversation->save();
+            ChatLog::answer($this->conversation, $calls, $chars, $stop, $this->userRef, $this->visitor);
+            $failed = false;
 
-        return $this->conversation->answered($answer) ? $answer : null;
+            return $this->conversation->answered($answer) ? $answer : null;
+        } finally {
+            // every answer that reached the model is reported, also one that broke off: those calls were made
+            if ($calls > 0) {
+                AnswerCompleted::dispatch($user, $this->visitor, $this->visitor !== null ? RekhuAssistant::visitors() : RekhuAssistant::tenant($user),
+                    $this->conversation->id, $failed ? null : ($this->conversation->answered($answer) ? $answer : null), $this->scope,
+                    $this->used['model'] ?? $model, $this->used['input'], $this->used['output'], $this->used['cache_read'], $this->used['cache_write'],
+                    $calls, $this->used['actions'], $stop, (int) round((hrtime(true) - $started) / 1e6), $failed);
+            }
+        }
+    }
+
+    /** What one model call used, added to the answer's. */
+    private function count(array $message): void
+    {
+        $u = (array) ($message['usage'] ?? []);
+        $this->used['model'] = $message['model'] ?? $this->used['model'];
+        $this->used['input'] += (int) ($u['input_tokens'] ?? 0);
+        $this->used['output'] += (int) ($u['output_tokens'] ?? 0);
+        $this->used['cache_read'] += (int) ($u['cache_read_input_tokens'] ?? 0);
+        $this->used['cache_write'] += (int) ($u['cache_creation_input_tokens'] ?? 0);
     }
 
     /** The action in the chat log, and for a developer in debug mode under the answer: its input, outcome and time. */
@@ -152,7 +198,7 @@ class Turn
         }
         ($this->emit)(['type' => 'step', 'label' => $action['label'] ?? __('rekhu-assistant::messages.working')]);
         $started = hrtime(true);
-        $outcome = Dispatcher::run($action, $pending['input'], $this->request);
+        $outcome = Dispatcher::run($action, $pending['input'], $this->request, $this->conversation);
         $this->trace($pending['tool'], $pending['input'], $outcome, $started);
         $this->card($action, $outcome);
         $this->conversation->report('I confirmed "'.$action['description'].'". '
@@ -162,8 +208,12 @@ class Turn
 
     private function call(string $name, array $input): array
     {
+        $this->used['actions'][] = $name;
         if ($name === 'open_page') {
             return $this->openPage($input);
+        }
+        if ($name === 'web_read' && $this->web['enabled'] && $this->web['read']) {
+            return $this->webRead($input);
         }
         if ($name === 'help') {
             ($this->emit)(['type' => 'step', 'label' => __('rekhu-assistant::messages.help')]);
@@ -185,10 +235,25 @@ class Turn
             return ['ok' => true, 'result' => ['status' => 'needs_confirmation', 'note' => 'The user sees a confirm button for exactly this input. Nothing has happened yet.']];
         }
         ($this->emit)(['type' => 'step', 'label' => $action['label'] ?? __('rekhu-assistant::messages.working')]);
-        $outcome = Dispatcher::run($action, $input, $this->request);
+        $outcome = Dispatcher::run($action, $input, $this->request, $this->conversation);
         $this->card($action, $outcome);
 
         return $outcome;
+    }
+
+    /** One page read for the answer, inside the web lock: the sites, the lookups per answer and per user a day. */
+    private function webRead(array $input): array
+    {
+        if (++$this->lookups > (int) $this->web['per_answer']) {
+            return ['ok' => false, 'error' => 'no more web lookups in this answer: answer with what you have'];
+        }
+        $who = $this->userRef !== null ? 'user:'.$this->userRef : 'visitor:'.$this->visitor;
+        if (! Web::allow($who, $this->web)) {
+            return ['ok' => false, 'error' => 'the web lookups for today are used up: say so and answer with what you have'];
+        }
+        ($this->emit)(['type' => 'step', 'label' => __('rekhu-assistant::messages.web')]);
+
+        return Web::read((string) ($input['url'] ?? ''), $this->web);
     }
 
     private function openPage(array $input): array
@@ -220,8 +285,23 @@ class Turn
         return $base.$path;
     }
 
-    private function card(array $action, array $outcome): void
+    private function card(array $action, array &$outcome): void
     {
+        // the app's own cards (Card::make): drawn by its chat panel; the model is told they are shown, not their data
+        if ($outcome['ok'] && is_array($outcome['result']) && isset($outcome['result'][Card::KEY])) {
+            $kinds = [];
+            foreach ((array) $outcome['result'][Card::KEY] as $card) {
+                if (is_array($card) && isset($card['kind'])) {
+                    ($this->emit)(['type' => 'card', 'kind' => (string) $card['kind'], 'data' => (object) ($card['data'] ?? [])] + (isset($card['title']) ? ['title' => (string) $card['title']] : []));
+                    $kinds[] = (string) $card['kind'];
+                }
+            }
+            unset($outcome['result'][Card::KEY]);
+            $outcome['result']['cards_shown'] = $kinds;
+            $outcome['result']['note'] = trim(($outcome['result']['note'] ?? '').' The user sees '.(count($kinds) === 1 ? 'a card' : 'cards').' with this: do not repeat it all, say what matters.');
+
+            return;
+        }
         // a file: a download button, whatever kind of action made it
         if ($outcome['ok'] && ($outcome['result']['status'] ?? null) === 'file') {
             ($this->emit)(['type' => 'card', 'kind' => 'file', 'title' => $action['label'] ?? $outcome['result']['name'], 'name' => $outcome['result']['name'], 'url' => $outcome['result']['url'], 'size' => $outcome['result']['size']]);
@@ -253,7 +333,8 @@ class Turn
             ]];
         }
 
-        return $tools;
+        // the internet, only as the app allows it (config web)
+        return [...$tools, ...Web::tools($this->web)];
     }
 
     /** The whole conversation is sent every time; a cache mark on its last block makes it a cheap cache read next time. */

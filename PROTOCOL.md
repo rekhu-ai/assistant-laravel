@@ -57,8 +57,10 @@ Request, `Content-Type: application/json`, `Accept: text/event-stream`:
 | `conversation` | the id from an earlier `start` event; empty or absent starts a new conversation |
 | `confirm` | the `id` of a confirm card the user clicked, instead of a message |
 | `locale` | the language the user reads (BCP 47, for example `en-GB`, `nl-NL`); the answer is in that language |
+| `scope` | optional: a chat of its own the server has (a marketplace chat next to the main one); its conversations are its own |
+| `files[]` | optional: files the user attaches. The request is then `multipart/form-data` with the other fields as form fields |
 
-One of `message` and `confirm` is required; neither is `422`. Too many turns in a short time is `429`.
+One of `message`, `confirm` and `files[]` is required; none is `422`. Too many turns in a short time is `429`.
 
 The answer is `200` with `Content-Type: text/event-stream`. Each event is one block:
 
@@ -72,7 +74,7 @@ The `data` line is JSON and always repeats the event's `type`. The events, in th
 
 | `type` | Fields | Meaning |
 |---|---|---|
-| `start` | `conversation`, `protocol` | always first; keep `conversation` and send it with the next turn |
+| `start` | `conversation`, `protocol`, `files?` | always first; keep `conversation` and send it with the next turn. `files`: the files sent with this turn as the server kept them, each `{ id, name, about }` (`about` says what it is: type, size, pages, page size, pixels, dpi, colour); a zip is followed by the files it held |
 | `text` | `text` | a piece of the answer; append it to the current answer bubble |
 | `step` | `label` | the assistant is doing something ("Looking in the help", an action's name); ends when any next event comes |
 | `card` | `kind`, … | something to show or click; see below |
@@ -91,6 +93,7 @@ A `text` after a `step` or a `card` starts a new answer bubble. All the bubbles 
 | `done` | `title`, `message?`, `url?` | an action ran; the app's data changed |
 | `failed` | `title`, `message` | an action was refused or failed; `message` says why |
 | `file` | `title`, `name`, `url`, `size` | an action handed over a file: a download button with the file `name` and its `size` in bytes |
+| any other | `data`, `title?` | a card of the app's own kind (a price, a wizard step): drawn by the app's renderer for that kind. Without one, a client shows `title`, `data.text`, `data.rows` (`{ label, value }`) and `data.buttons` (`{ label, message }`, which send `message` as the user's next message) |
 
 **Files.** `url` is a signed link the server package made for this user: it works for a short time and needs no login, so a client opens it as a plain download (`<a href download target="_blank">`), never through the app's router. `title` says what the file is ("Your transactions"), `name` is the file name with its extension (`transactions.xlsx`).
 
@@ -198,6 +201,10 @@ The client sends only the id, never the answer's text: the server package reads 
 | `429` | too many reports; `message` says so |
 
 A second report on the same answer by the same user replaces the first. The user is thanked even when the report could not be passed on at once; the server package tries again.
+
+## GET …/conversations: the user's conversations
+
+For a chat panel with a list: `{ "conversations": [{ "id", "title", "scope", "updated_at" }] }`, newest first, for the signed-in user (`?scope=` for a chat of its own, `?limit=` up to 100). `title` is the first thing the user asked.
 
 ## DELETE: start over
 

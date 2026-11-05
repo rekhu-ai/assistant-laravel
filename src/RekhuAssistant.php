@@ -4,9 +4,12 @@ namespace Rekhu\Assistant;
 
 use Closure;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Gate;
+use Rekhu\Assistant\Contracts\ConversationStore;
 use Rekhu\Assistant\Http\AssistantRoutes;
+use Rekhu\Assistant\Runtime\CacheConversations;
 
 /**
  * What the package knows about itself and the app: the key, and who the customer is behind a signed-in user.
@@ -28,7 +31,7 @@ use Rekhu\Assistant\Http\AssistantRoutes;
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.10.0';
+    public const VERSION = '0.11.0';
 
     /** The Rekhu product the keys of this package belong to: agk_<account>_assistant_<secret>. */
     public const PRODUCT = 'assistant';
@@ -141,6 +144,53 @@ class RekhuAssistant
     public static function tenantUsing(Closure $resolver): void
     {
         self::$tenant = $resolver;
+    }
+
+    private static ?Closure $model = null;
+
+    /**
+     * fn (?$user, Request $request, ?string $scope): ?string — the model for this answer, by its name in your Rekhu
+     * account (from the user's plan, say); null falls back to the config's model. Rekhu still refuses a model your
+     * project does not allow.
+     *
+     *     RekhuAssistant::modelUsing(fn ($user) => $user?->team?->plan?->assistant_model);
+     */
+    public static function modelUsing(?Closure $resolver): void
+    {
+        self::$model = $resolver;
+    }
+
+    public static function model(?Authenticatable $user, Request $request, ?string $scope = null): ?string
+    {
+        $chosen = self::$model ? (self::$model)($user, $request, $scope) : null;
+        $chosen = is_string($chosen) && trim($chosen) !== '' ? trim($chosen) : null;
+
+        return $chosen ?? (string) (config("rekhu-assistant.scopes.$scope.model") ?? '') ?: (config('rekhu-assistant.model') ?: null);
+    }
+
+    private static mixed $store = null;
+
+    /**
+     * Where conversations are kept: a class (or instance) of Rekhu\Assistant\Contracts\ConversationStore. The default
+     * keeps them in the app's cache for conversation_minutes; your own store keeps them in your own tables, with a list
+     * of a user's conversations for your chat panel.
+     *
+     *     RekhuAssistant::conversationsUsing(App\Assistant\DatabaseConversations::class);
+     */
+    public static function conversationsUsing(mixed $store): void
+    {
+        self::$store = $store;
+    }
+
+    public static function store(): ConversationStore
+    {
+        $store = self::$store ?? CacheConversations::class;
+        $store = is_string($store) ? app($store) : $store;
+        if (! $store instanceof ConversationStore) {
+            throw new \InvalidArgumentException('RekhuAssistant::conversationsUsing() needs a '.ConversationStore::class);
+        }
+
+        return $store;
     }
 
     /** The key's parts: agk_<customer>_<agent>_<secret>. Null when there is no usable key. */

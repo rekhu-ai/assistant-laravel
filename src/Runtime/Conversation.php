@@ -3,8 +3,8 @@
 namespace Rekhu\Assistant\Runtime;
 
 use Illuminate\Contracts\Auth\Authenticatable;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use Rekhu\Assistant\RekhuAssistant;
 
 /**
  * One user's conversation, kept on the server (the app's cache), never in the browser: the model only ever reads what
@@ -33,26 +33,40 @@ final class Conversation
     /** The number of the next message id. */
     private int $next = 1;
 
-    /** Whether the conversation was found in the cache, rather than started now. */
+    /** Whether the conversation was found in the store, rather than started now. */
     public bool $exists = false;
+
+    /** The chat it belongs to (config scopes); null for the main chat. */
+    public ?string $scope = null;
+
+    /** att_… => what the user attached in this conversation (see Attachments) */
+    public array $attachments = [];
+
+    private ?Authenticatable $user = null;
+
+    private ?string $visitor = null;
 
     private function __construct(public string $id, private string $owner) {}
 
     /** The conversation $id of this user, or of this visitor in the public chat (an anonymous id from the widget). */
-    public static function open(?Authenticatable $user, ?string $id, ?string $visitor = null): self
+    public static function open(?Authenticatable $user, ?string $id, ?string $visitor = null, ?string $scope = null): self
     {
-        $owner = $user ? get_class($user).':'.$user->getAuthIdentifier() : ($visitor ? 'visitor:'.$visitor : 'guest');
         $id = $id && preg_match('/^[a-zA-Z0-9-]{8,64}$/', $id) ? $id : (string) Str::uuid();
-        $conversation = new self($id, $owner);
-        $stored = Cache::get($conversation->key());
-        // kept as JSON: only strings and arrays, whatever classes the app's cache store may unserialize
-        if (is_string($stored)) {
-            $stored = json_decode($stored, true);
+        $conversation = new self($id, self::owner($user, $visitor));
+        $conversation->user = $user;
+        $conversation->visitor = $visitor;
+        $conversation->scope = $scope;
+        $stored = RekhuAssistant::store()->get($conversation->owner, $id);
+        // a conversation of another chat (scope) is not this one: the chat starts fresh under a new id
+        if (is_array($stored) && ($stored['scope'] ?? null) !== $scope) {
+            $conversation->id = (string) Str::uuid();
+            $stored = null;
         }
         if (is_array($stored)) {
             $conversation->exists = true;
             $conversation->messages = $stored['messages'] ?? [];
             $conversation->pending = $stored['pending'] ?? [];
+            $conversation->attachments = $stored['attachments'] ?? [];
             $conversation->next = (int) ($stored['next'] ?? 1);
             if (! isset($stored['next'])) {
                 $conversation->numberStoredMessages();
@@ -71,7 +85,30 @@ final class Conversation
                 array_shift($this->messages);
             }
         }
-        Cache::put($this->key(), json_encode(['messages' => $this->messages, 'pending' => $this->pending, 'next' => $this->next], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), now()->addMinutes((int) config('rekhu-assistant.conversation_minutes', 1440)));
+        RekhuAssistant::store()->put($this->owner, $this->id, [
+            'messages' => $this->messages, 'pending' => $this->pending, 'next' => $this->next, 'scope' => $this->scope, 'attachments' => $this->attachments,
+        ], (int) config('rekhu-assistant.conversation_minutes', 1440), [
+            'user' => $this->user, 'visitor' => $this->visitor, 'tenant' => $this->visitor !== null ? RekhuAssistant::visitors() : RekhuAssistant::tenant($this->user),
+            'scope' => $this->scope, 'title' => $this->title(),
+        ]);
+    }
+
+    /** Who a conversation belongs to: a user by class and id, a visitor by their anonymous id. */
+    public static function owner(?Authenticatable $user, ?string $visitor): string
+    {
+        return $user ? get_class($user).':'.$user->getAuthIdentifier() : ($visitor ? 'visitor:'.$visitor : 'guest');
+    }
+
+    /** The first thing the user asked, as the conversation's title in a list. */
+    public function title(): ?string
+    {
+        foreach ($this->messages as $message) {
+            if ($message['role'] === 'user' && is_string($message['content']) && trim($message['content']) !== '') {
+                return Str::limit(trim($message['content']), 80);
+            }
+        }
+
+        return null;
     }
 
     /** A new message id. */
@@ -83,10 +120,21 @@ final class Conversation
     /** The messages as the model reads them: role and content, without the ids; an action's input is always an object. */
     public function forModel(): array
     {
+        // the files of the last two messages that had any are shown to the model itself; older ones as their description
+        $withFiles = array_keys(array_filter($this->messages, fn ($m) => ! empty($m['attachments'])));
+        $recent = array_slice($withFiles, -2);
+        $messages = $this->messages;
+        foreach ($withFiles as $i) {
+            $files = Attachments::forModel($this, (array) $messages[$i]['attachments'], in_array($i, $recent, true));
+            if ($files) {
+                $messages[$i]['content'] = [['type' => 'text', 'text' => (string) $messages[$i]['content'] ?: '(the user sent files without a message)'], ...$files];
+            }
+        }
+
         return array_map(fn (array $message) => ['role' => $message['role'], 'content' => is_array($message['content'])
             ? array_map(fn ($block) => ($block['type'] ?? '') === 'tool_use' ? ['input' => self::input($block['input'] ?? null)] + $block : $block, $message['content'])
             : $message['content'],
-        ], self::paired($this->messages));
+        ], self::paired($messages));
     }
 
     /**
@@ -223,7 +271,8 @@ final class Conversation
         $lines = [];
         foreach ($this->messages as $message) {
             if ($message['role'] === 'user' && is_string($message['content'])) {
-                $lines[] = ['id' => (string) ($message['id'] ?? ''), 'role' => 'user', 'text' => $message['content']];
+                $files = array_values(array_filter(array_map(fn ($id) => $this->attachments[$id]['name'] ?? null, (array) ($message['attachments'] ?? []))));
+                $lines[] = array_filter(['id' => (string) ($message['id'] ?? ''), 'role' => 'user', 'text' => $message['content'], 'files' => $files ?: null], fn ($v) => $v !== null);
             } elseif ($message['role'] === 'assistant') {
                 $text = trim(implode("\n", array_map(
                     fn (array $block) => $block['text'] ?? '',
@@ -273,7 +322,8 @@ final class Conversation
 
     public function forget(): void
     {
-        Cache::forget($this->key());
+        RekhuAssistant::store()->forget($this->owner, $this->id);
+        Attachments::remove($this);
     }
 
     /** The id of a confirmation for exactly this action and input. */
@@ -288,10 +338,5 @@ final class Conversation
     public function ownerKey(): string
     {
         return sha1($this->owner);
-    }
-
-    private function key(): string
-    {
-        return 'rekhu-assistant:'.sha1($this->owner).':'.$this->id;
     }
 }

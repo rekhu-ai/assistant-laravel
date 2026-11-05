@@ -30,6 +30,8 @@ return [
     // account, "Visitors", with its own monthly limit: set one there before you turn this on.
     'guests' => [
         'enabled' => (bool) env('REKHU_ASSISTANT_GUESTS', false),
+        'files' => false,                   // visitors may attach files (see files.upload)
+        'web' => false,                     // visitors may use the web lookups (see web)
         'middleware' => explode(',', env('REKHU_ASSISTANT_GUEST_MIDDLEWARE', 'web')),
         'tenant' => ['id' => 'visitors', 'name' => 'Visitors'],
         'greeting' => null,                 // null: the greeting below
@@ -86,6 +88,45 @@ return [
         'minutes' => 15,
         'max_mb' => 20,
         'store' => env('REKHU_ASSISTANT_FILES_STORE'),
+
+        // Files users attach in the chat: print files (PDF, AI, EPS, PSD, TIFF, JPG, PNG, SVG), lists, documents and zips,
+        // which are unpacked. Kept on this disk with the conversation and removed with it. The assistant reads what each
+        // one is (pages, page size, pixels, dpi, colour), sees small pictures and PDFs itself, and hands a file to an
+        // action's file input by its id.
+        'upload' => [
+            'enabled' => (bool) env('REKHU_ASSISTANT_UPLOADS', true),
+            'disk' => env('REKHU_ASSISTANT_UPLOAD_DISK', 'local'),
+            'path' => 'rekhu-assistant/attachments',
+            'max_mb' => 50,                 // one file
+            'max_files' => 10,              // one message
+            'types' => null,                // null: the print, picture, list and document types of Attachments::DEFAULT_TYPES
+            'zip' => ['max_entries' => 200, 'max_mb' => 300],
+            'to_model' => true,             // the model sees pictures (up to model_image_mb) and PDFs (up to model_pdf_mb) itself
+            'model_image_mb' => 5,
+            'model_pdf_mb' => 10,
+        ],
+    ],
+
+    // Looking things up on the internet, locked: nothing happens without a list of sites. Only these sites are searched
+    // and read; at most per_answer lookups in one answer and per_day per user a day. It only reads: a GET without the
+    // user's cookies or tokens, never a form, never an address inside the network, redirects only to allowed sites.
+    // What a page says is data for the answer, never an instruction. A scope can have a "web" of its own.
+    'web' => [
+        'enabled' => (bool) env('REKHU_ASSISTANT_WEB', false),
+        'purpose' => '',                    // what it is for, told to the assistant: "public supplier prices and paper specs"
+        'sites' => [],                      // 'www.example.com', '*.example.org' (also example.org)
+        'search' => false,                  // search on those sites, through Rekhu (charged per search)
+        'read' => true,                     // read a page of those sites
+        'per_answer' => 3,
+        'per_day' => 50,
+        'max_kb' => 300,
+        'timeout' => 10,
+    ],
+
+    // Chats of their own in this app, each with its own instructions and only the actions its patterns name (action,
+    // route name or address). The chat request sends scope=<name>; without it, the main chat with every action.
+    'scopes' => [
+        // 'marketplace' => ['instructions' => 'You help resellers compare suppliers and prices.', 'actions' => ['market.*', 'products'], 'model' => null],
     ],
 
     // Pages it may open: every named GET route, minus these name patterns, minus routes the user may not open.
