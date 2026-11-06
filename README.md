@@ -801,6 +801,21 @@ Users attach files in the chat: print files (PDF, AI, EPS, PSD, TIFF, JPG, PNG, 
 - **A zip** is unpacked safely: never outside its folder, no hidden or Mac resource files, only the allowed types, at most 200 files and 300 MB (`files.upload.zip`). What was left out is said.
 - **Kept** on your disk (`files.upload.disk`, `path`) with the conversation, and removed with it. One file is at most `files.upload.max_mb` (50), one message `max_files` (10). Visitors attach nothing unless `guests.files` is on.
 
+## Rekhu's knowers in the chat
+
+Install [`rekhu/core`](https://github.com/rekhu-ai/core-laravel) with its knowers and the assistant uses them by itself:
+
+```bash
+composer require rekhu/core
+php artisan rekhu:core --install=seshat
+php artisan rekhu:core --install=machines
+```
+
+- **Seshat:** a user attaches a print file and says what it is for ("an A5 flyer"). The assistant has Seshat check it, and the user sees a card with the findings, a proof of the page (trim, bleed, safe zone) and a **Fix it** button. After the fix, the print-ready file comes as a download, and the assistant says what is still the user's to decide.
+- **Rekhu Machines:** "which of our machines for 5,000 business cards?", "is 18,000 sheets an hour right for our SM 74?"
+
+They run for the user's tenant (`RekhuAssistant::tenantUsing()`) and are kept in rekhu/core's usage table. Turn them off with `REKHU_ASSISTANT_KNOWERS=false`; visitors get them only with `guests.knowers`.
+
 ## Looking things up on the internet
 
 The assistant can search and read pages, **locked to what you allow**:

@@ -2,6 +2,16 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.12.0 · 6 November 2026
+
+- **Rekhu's knowers in the chat.** With `rekhu/core` and its knowers installed, the assistant uses them by itself, for the user's tenant:
+  - **Seshat** checks the print file the user attached against what was ordered, shows a card with the findings, a proof of the page and a Fix button, fixes it, and hands over the print-ready file as a download.
+  - **Rekhu Machines** identifies, checks and chooses printing machines and answers questions about them.
+  - Turn them off with `knowers.enabled`; visitors only with `guests.knowers`.
+- The knowers' cards speak the user's own language (the widget's locale) when the package has texts for it.
+- Installs next to Guzzle 8 as well as 7, as Laravel 13 allows.
+- Widget 0.6.1: a card of the app's own kind shows a picture sent as a data: URL.
+
 ## 0.11.0 · 5 November 2026
 
 - **Usage per answer.** `AnswerCompleted` fires after every answer with the model, the input, output, cache-read and cache-write tokens of all its model calls, the number of calls, the actions, the tenant, user, conversation and scope: what an app needs to charge its own customers per answer. It also fires for an answer that broke off.

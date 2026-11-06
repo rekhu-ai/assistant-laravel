@@ -44,6 +44,12 @@ class Turn
 
     private int $lookups = 0;
 
+    /** Rekhu's knowers the app installed with rekhu/core (Seshat, Rekhu Machines), as tools. */
+    private array $knowers;
+
+    /** The language the user's browser reads (the widget sends it), for the texts on the knowers' cards. */
+    private ?string $locale = null;
+
     /** What this answer used, for AnswerCompleted. */
     private array $used = ['model' => null, 'input' => 0, 'output' => 0, 'cache_read' => 0, 'cache_write' => 0, 'actions' => []];
 
@@ -53,6 +59,7 @@ class Turn
         $user = $visitor === null ? $request->user() : null;
         $this->scope = Scopes::from($request);
         $this->web = Web::settings($this->scope, $visitor !== null);
+        $this->knowers = Knowers::installed($visitor !== null);
         // a chat of its own (scope) has only the actions it names
         $this->actions = Scopes::filter(Actions::for($user), $this->scope);
         $this->pages = Pages::for($user);
@@ -67,6 +74,7 @@ class Turn
      */
     public function turn(string $text, ?string $confirm = null, ?string $browser = null, array $files = []): ?string
     {
+        $this->locale = $browser;
         $started = hrtime(true);
         if ($confirm !== null) {
             $this->confirmed($confirm);
@@ -215,6 +223,11 @@ class Turn
         if ($name === 'web_read' && $this->web['enabled'] && $this->web['read']) {
             return $this->webRead($input);
         }
+        if (Knowers::handles($name, $this->knowers)) {
+            $user = $this->visitor === null ? $this->request->user() : null;
+
+            return Knowers::call($name, $input, $user, $this->visitor !== null ? RekhuAssistant::visitors() : RekhuAssistant::tenant($user), $this->conversation, $this->emit, $this->locale);
+        }
         if ($name === 'help') {
             ($this->emit)(['type' => 'step', 'label' => __('rekhu-assistant::messages.help')]);
             $found = Help::search((string) ($input['question'] ?? ''));
@@ -334,7 +347,7 @@ class Turn
         }
 
         // the internet, only as the app allows it (config web)
-        return [...$tools, ...Web::tools($this->web)];
+        return [...$tools, ...Knowers::tools($this->knowers), ...Web::tools($this->web)];
     }
 
     /** The whole conversation is sent every time; a cache mark on its last block makes it a cheap cache read next time. */

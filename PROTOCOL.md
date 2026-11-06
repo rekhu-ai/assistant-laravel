@@ -93,7 +93,7 @@ A `text` after a `step` or a `card` starts a new answer bubble. All the bubbles 
 | `done` | `title`, `message?`, `url?` | an action ran; the app's data changed |
 | `failed` | `title`, `message` | an action was refused or failed; `message` says why |
 | `file` | `title`, `name`, `url`, `size` | an action handed over a file: a download button with the file `name` and its `size` in bytes |
-| any other | `data`, `title?` | a card of the app's own kind (a price, a wizard step): drawn by the app's renderer for that kind. Without one, a client shows `title`, `data.text`, `data.rows` (`{ label, value }`) and `data.buttons` (`{ label, message }`, which send `message` as the user's next message) |
+| any other | `data`, `title?` | a card of the app's own kind (a price, a wizard step): drawn by the app's renderer for that kind. Without one, a client shows `title`, `data.text`, `data.rows` (`{ label, value }`), `data.image` (a picture as a `data:image/png`, `jpeg` or `webp` URL only, never an address) and `data.buttons` (`{ label, message }`, which send `message` as the user's next message). The knowers' cards are of this kind: `seshat` (a print file's check or proof) |
 
 **Files.** `url` is a signed link the server package made for this user: it works for a short time and needs no login, so a client opens it as a plain download (`<a href download target="_blank">`), never through the app's router. `title` says what the file is ("Your transactions"), `name` is the file name with its extension (`transactions.xlsx`).
 

@@ -190,6 +190,17 @@ class Attachments
         return new UploadedFile($tmp, $a['name'], $a['type'], null, true);
     }
 
+    /** ['name' => …, 'bytes' => …] of a file attached in this conversation, or null. */
+    public static function read(Conversation $conversation, string $id): ?array
+    {
+        $a = $conversation->attachments[$id] ?? null;
+        if (! $a || ! self::disk()->exists($a['path'])) {
+            return null;
+        }
+
+        return ['name' => $a['name'], 'bytes' => (string) self::disk()->get($a['path'])];
+    }
+
     /** The files of one message as the model reads them: a line per file with what it is, and the small pictures and PDFs themselves. */
     public static function forModel(Conversation $conversation, array $ids, bool $withContent): array
     {

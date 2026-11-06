@@ -1,4 +1,4 @@
-/*! @rekhu/assistant-widget 0.6.0 · https://rekhu.com · generated from src/index.js, do not edit */
+/*! @rekhu/assistant-widget 0.6.1 · https://rekhu.com · generated from src/index.js, do not edit */
 (() => {
 /*
  * The Rekhu Assistant widget: a chat button and panel as <rekhu-assistant>, in its own shadow DOM so the app's CSS and
@@ -50,6 +50,7 @@ header button:hover { opacity: 1; background: rgba(255,255,255,.15); }
 .chip button { border: 0; background: none; cursor: pointer; color: #6b7280; font: inherit; }
 .files { margin-top: 6px; font-size: 12px; opacity: .85; }
 .files li { margin-inline-start: 16px; }
+.card img.picture { display: block; max-width: 100%; max-height: 320px; margin: 6px 0; border-radius: 6px; border: 1px solid #e5e7eb; }
 .card dl.rows { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 6px 0; }
 .btn { border: 0; border-radius: 8px; padding: 7px 12px; font: inherit; font-weight: 600; cursor: pointer; background: var(--c); color: #fff; text-decoration: none; display: inline-block; }
 .btn.light { background: #f3f4f6; color: #374151; } .btn.danger { background: #dc2626; }
@@ -874,7 +875,9 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         } else {
             const rows = Array.isArray(data.rows) ? data.rows.map((r) => `<dt>${escape(r.label ?? '')}</dt><dd>${escape(r.value ?? '')}</dd>`).join('') : '';
             const buttons = Array.isArray(data.buttons) ? data.buttons.filter((b) => b && b.label && b.message) : [];
-            el.innerHTML = `${event.title || data.title ? `<div class="title">${escape(event.title || data.title)}</div>` : ''}${data.text ? `<div class="detail">${escape(data.text)}</div>` : ''}${rows ? `<dl class="rows">${rows}</dl>` : ''}`
+            // a picture only as a data: URL the server sent (a proof of a page), never an address to load
+            const picture = typeof data.image === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(data.image) ? `<img class="picture" src="${data.image}" alt="${escape(data.alt || event.title || '')}">` : '';
+            el.innerHTML = `${event.title || data.title ? `<div class="title">${escape(event.title || data.title)}</div>` : ''}${data.text ? `<div class="detail">${escape(data.text)}</div>` : ''}${picture}${rows ? `<dl class="rows">${rows}</dl>` : ''}`
                 + (buttons.length ? `<div class="row">${buttons.map((b, i) => `<button class="btn ${i ? 'light' : ''}" data-say="${i}">${escape(b.label)}</button>`).join('')}</div>` : '');
             el.querySelectorAll('[data-say]').forEach((b) => b.addEventListener('click', () => {
                 if (this.busy) return;

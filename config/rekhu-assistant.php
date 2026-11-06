@@ -32,6 +32,7 @@ return [
         'enabled' => (bool) env('REKHU_ASSISTANT_GUESTS', false),
         'files' => false,                   // visitors may attach files (see files.upload)
         'web' => false,                     // visitors may use the web lookups (see web)
+        'knowers' => false,                 // visitors may use Rekhu's knowers (see knowers)
         'middleware' => explode(',', env('REKHU_ASSISTANT_GUEST_MIDDLEWARE', 'web')),
         'tenant' => ['id' => 'visitors', 'name' => 'Visitors'],
         'greeting' => null,                 // null: the greeting below
@@ -105,6 +106,13 @@ return [
             'model_image_mb' => 5,
             'model_pdf_mb' => 10,
         ],
+    ],
+
+    // Rekhu's knowers as tools: with rekhu/core installed (php artisan rekhu:core --install=seshat), the assistant checks
+    // and fixes the print files users attach (Seshat) and knows printing machines (Rekhu Machines), for the user's tenant.
+    'knowers' => [
+        'enabled' => (bool) env('REKHU_ASSISTANT_KNOWERS', true),
+        'proof' => true,                    // Seshat's cards show the page with its trim, bleed and safe zone (one preview call each)
     ],
 
     // Looking things up on the internet, locked: nothing happens without a list of sites. Only these sites are searched
