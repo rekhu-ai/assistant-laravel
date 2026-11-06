@@ -2,6 +2,25 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.13.0 · 6 November 2026
+
+For multi-tenant apps (a users table per tenant) and apps whose customers resell the chat:
+
+- **Tenants kept apart.**
+  - With `tenantUsing()`, a conversation belongs to the tenant and the user together (`tenant:{id}|App\Models\User:3`). User 3 of one tenant never sees, lists or continues user 3's conversations of another, and their report limits and message limit are separate too.
+  - Apps without `tenantUsing()` keep their keys.
+- **Later work in the right tenant:** `RekhuAssistant::restoreTenantUsing(fn (array $tenant) => …)` runs before queued work (a report sent again), with the tenant kept, so a database per tenant is switched first.
+- **Tool classes of several steps:**
+  - `$this->route('route.name', $input)` runs a route of the app as the chat's user (its middleware, permissions and validation), with the same `ok / result / error` shape.
+  - `$this->conversation()` and `$this->attachment($id)` give the conversation and its files.
+- **Progress from a tool:** `$this->step('Comparing 120 offers…')` and `$this->card('offers', $data)` show while the tool runs; the assistant reads only the final result.
+- **Usage per action:** `$this->usage('preflight', 1)` in a Tool class, or `Usage::attach($result, 'preflight', 1)` in a route's result. It ends up in `AnswerCompleted::$actionUsage` with the action's name, to bill with the tokens.
+- **On or off per tenant:** `RekhuAssistant::enabledUsing(fn ($user, $tenant, $scope) => …)`. Off, the chat answers 403 with `available: false`, and the widget shows nothing.
+- **White-label:**
+  - `brand.rekhu` false: nothing in the chat names Rekhu or its knowers, neither the cards nor the assistant's words.
+  - `RekhuAssistant::brandUsing(fn ($tenant) => ['name' => …, 'logo' => …, 'colors' => ['accent' => '#…']])` sets the look per tenant; the widget applies it.
+- Widget 0.7.0.
+
 ## 0.12.0 · 6 November 2026
 
 - **Rekhu's knowers in the chat.** With `rekhu/core` and its knowers installed, the assistant uses them by itself, for the user's tenant:

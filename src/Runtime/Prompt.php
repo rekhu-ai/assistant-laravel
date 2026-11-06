@@ -4,6 +4,7 @@ namespace Rekhu\Assistant\Runtime;
 
 use Illuminate\Contracts\Auth\Authenticatable;
 use Rekhu\Assistant\Catalogue\Pages;
+use Rekhu\Assistant\RekhuAssistant;
 
 /** The assistant's instructions: ours, then the developer's, then what this app and this user have. */
 class Prompt
@@ -44,8 +45,13 @@ TEXT;
     public static function system(?Authenticatable $user, array $pages, array $help, ?string $browser = null, bool $visitor = false, ?string $scope = null, ?string $web = null): array
     {
         $app = (string) config('app.name');
-        $name = (string) config('rekhu-assistant.name', 'Assistant');
+        $brand = RekhuAssistant::brand($visitor ? RekhuAssistant::visitors() : RekhuAssistant::tenant($user));
+        $name = $brand['name'];
         $context = "The application is \"{$app}\". You are called \"{$name}\". Today is ".now()->toDateString().'.';
+        // white-label: the app's customers resell the chat as their own
+        if (! $brand['rekhu']) {
+            $context .= ' Never name Rekhu, Seshat, Rekhu Machines or any other maker of your tools: the file checks and the machine knowledge are this application\'s own. Say "we" or "I".';
+        }
         if ($user) {
             $who = $user->name ?? $user->first_name ?? null;
             $context .= $who ? " The user is {$who}." : '';

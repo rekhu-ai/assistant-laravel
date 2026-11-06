@@ -2,6 +2,7 @@
 
 namespace Rekhu\Assistant\Runtime;
 
+use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Http\Kernel;
@@ -24,6 +25,8 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use JsonSerializable;
 use Rekhu\Assistant\Catalogue\Routes;
+use Rekhu\Assistant\Tool;
+use Rekhu\Assistant\Usage;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
@@ -45,11 +48,16 @@ class Dispatcher
     ];
 
     /** ['ok' => true, 'result' => …] or ['ok' => false, 'error' => …, 'errors'?] */
-    public static function run(array $action, array $input, Request $outer, ?Conversation $conversation = null): array
+    public static function run(array $action, array $input, Request $outer, ?Conversation $conversation = null, ?Closure $emit = null): array
     {
         // files the user attached go in by their id (att_…): the action gets them as uploaded files, as from a form
         [$input, $files] = self::files($input, $conversation);
-        $outcome = isset($action['class']) ? self::tool($action['class'], $input + $files, $outer) : self::route($action['route'], $input, $outer, $files);
+        $outcome = isset($action['class']) ? self::tool($action['class'], $input + $files, $outer, new ToolContext($outer, $conversation, $emit)) : self::route($action['route'], $input, $outer, $files);
+        // usage a route's result carries (Usage::attach) goes with the outcome, never to the assistant
+        if ($outcome['ok'] && is_array($outcome['result'] ?? null) && isset($outcome['result'][Usage::KEY])) {
+            $outcome['usage'] = [...($outcome['usage'] ?? []), ...array_values(array_filter((array) $outcome['result'][Usage::KEY], 'is_array'))];
+            unset($outcome['result'][Usage::KEY]);
+        }
         if ($outcome['ok'] && ($action['fields'] ?? []) && ($outcome['result']['status'] ?? null) !== 'file') {
             $outcome['result'] = Shape::pick($outcome['result'], $action['fields']);
         }
@@ -79,6 +87,14 @@ class Dispatcher
         }
 
         return [$input, $files];
+    }
+
+    /** A route by itself, for a Tool class's $this->route(): the same call as an action's, attached files by id. */
+    public static function callRoute(Route $route, array $input, Request $outer, ?Conversation $conversation = null): array
+    {
+        [$input, $files] = self::files($input, $conversation);
+
+        return self::route($route, $input, $outer, $files);
     }
 
     private static function route(Route $route, array $input, Request $outer, array $files = []): array
@@ -161,7 +177,7 @@ class Dispatcher
     }
 
     /** A Tool class: a fresh instance for this call, its input validated, then handle() with the input as the request. */
-    private static function tool(string $class, array $input, Request $outer): array
+    private static function tool(string $class, array $input, Request $outer, ?ToolContext $context = null): array
     {
         $server = array_merge($outer->server->all(), ['HTTP_ACCEPT' => 'application/json', 'HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest']);
         unset($server['CONTENT_LENGTH'], $server['HTTP_CONTENT_LENGTH'], $server['CONTENT_TYPE']);
@@ -176,13 +192,17 @@ class Dispatcher
         $inner->setUserResolver($outer->getUserResolver());
         try {
             $tool = app($class);
+            if ($context && $tool instanceof Tool) {
+                $tool->bind($context);
+            }
             Validator::make($input, $tool->rules())->validate();
             $value = app()->call([$tool, 'handle'], ['request' => $inner]);
+            $usage = $context?->usage ?? [];
             if ($value instanceof JsonResource) {
                 $value = $value->response($inner);
             }
             if ($value instanceof Response) {
-                return self::answer($value, null, [], []);
+                return self::answer($value, null, [], []) + ($usage ? ['usage' => $usage] : []);
             }
 
             return ['ok' => true, 'result' => match (true) {
@@ -191,7 +211,7 @@ class Dispatcher
                 $value instanceof JsonSerializable => $value->jsonSerialize(),
                 is_array($value) => $value,
                 default => ['result' => $value],
-            }];
+            }] + ($usage ? ['usage' => $usage] : []);
         } catch (Throwable $e) {
             return self::failure($e);
         } finally {

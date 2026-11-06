@@ -46,6 +46,11 @@ return [
     'seshat_fixed' => 'The print-ready file',
     'seshat_proof' => 'The proof',
     'seshat_done' => 'done',
+    'seshat_check_plain' => 'Checking the file…',
+    'seshat_fix_plain' => 'Fixing the file…',
+    'seshat_decision_fix_plain' => 'We fix it',
+    'seshat_fix_message_plain' => 'Fix :name',
+    'not_available' => 'The assistant is not available here.',
     'seshat_codes' => [
         'set_trim_box' => 'Trim box set',
         'add_bleed' => 'Bleed added',

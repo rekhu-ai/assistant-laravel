@@ -31,7 +31,7 @@ use Rekhu\Assistant\Runtime\CacheConversations;
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.12.0';
+    public const VERSION = '0.13.0';
 
     /** The Rekhu product the keys of this package belong to: agk_<account>_assistant_<secret>. */
     public const PRODUCT = 'assistant';
@@ -141,9 +141,88 @@ class RekhuAssistant
         return [...$listed, ...array_values((array) (self::$pages ? (self::$pages)($user) : []))];
     }
 
-    public static function tenantUsing(Closure $resolver): void
+    public static function tenantUsing(?Closure $resolver): void
     {
         self::$tenant = $resolver;
+    }
+
+    /** Whether the app names a tenant per user (tenantUsing): then a user is known by tenant and id together. */
+    public static function hasTenants(): bool
+    {
+        return self::$tenant !== null;
+    }
+
+    private static ?Closure $restoreTenant = null;
+
+    /**
+     * fn (array $tenant): void — puts the app back in a tenant before work that runs later (a queued report, a job of the
+     * app's own): with a database per tenant, the connection switched to that tenant's. Gets ['id' => …, 'name' => …].
+     */
+    public static function restoreTenantUsing(?Closure $resolver): void
+    {
+        self::$restoreTenant = $resolver;
+    }
+
+    /** Called by the package before each piece of later work, with the tenant it kept; nothing without restoreTenantUsing. */
+    public static function restoreTenant(?array $tenant): void
+    {
+        if (self::$restoreTenant && $tenant && ($tenant['id'] ?? '') !== '') {
+            (self::$restoreTenant)(['id' => (string) $tenant['id'], 'name' => (string) ($tenant['name'] ?? $tenant['id'])]);
+        }
+    }
+
+    private static ?Closure $enabled = null;
+
+    /**
+     * fn (?$user, array $tenant, ?string $scope): bool — whether the chat is there for this user, tenant and chat of its own,
+     * to roll it out tenant by tenant. With false the chat answers "not available" (403, available: false) and the
+     * widget shows nothing.
+     */
+    public static function enabledUsing(?Closure $resolver): void
+    {
+        self::$enabled = $resolver;
+    }
+
+    public static function enabled(?Authenticatable $user, bool $visitor, ?string $scope): bool
+    {
+        return ! self::$enabled || (bool) (self::$enabled)($user, $visitor ? self::visitors() : self::tenant($user), $scope);
+    }
+
+    private static ?Closure $brand = null;
+
+    /**
+     * fn (array $tenant): array — the chat's look per tenant, for apps whose customers resell it: ['name' => …, 'logo' =>
+     * an https or data: image, 'colors' => ['accent' => '#…']]. With brand.rekhu off, nothing in the chat names Rekhu.
+     */
+    public static function brandUsing(?Closure $resolver): void
+    {
+        self::$brand = $resolver;
+    }
+
+    /** The brand for a tenant: config brand, then the app's resolver; only safe colours and image addresses pass. */
+    public static function brand(?array $tenant): array
+    {
+        $brand = [
+            'name' => (string) config('rekhu-assistant.name', 'Assistant'),
+            'logo' => config('rekhu-assistant.brand.logo'),
+            'colors' => (array) config('rekhu-assistant.brand.colors', []),
+            'rekhu' => (bool) config('rekhu-assistant.brand.rekhu', true),
+        ];
+        if (self::$brand && $tenant) {
+            $brand = array_replace($brand, array_intersect_key((array) (self::$brand)($tenant), $brand));
+        }
+        $brand['colors'] = array_filter(array_intersect_key((array) $brand['colors'], array_flip(['accent', 'text', 'background', 'surface', 'border'])), fn ($c) => is_string($c) && preg_match('/^#[0-9a-fA-F]{3,8}$/', $c));
+        $logo = is_string($brand['logo']) ? $brand['logo'] : '';
+        $brand['logo'] = preg_match('#^(https://|/[^/])#', $logo) || preg_match('#^data:image/(png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$#', $logo) ? $logo : null;
+        $brand['name'] = trim((string) $brand['name']) ?: 'Assistant';
+
+        return $brand;
+    }
+
+    /** Whether the app set a brand of its own (brandUsing, a logo or colours): then the chat gets it with its history. */
+    public static function branded(): bool
+    {
+        return self::$brand !== null || config('rekhu-assistant.brand.logo') || config('rekhu-assistant.brand.colors') || ! config('rekhu-assistant.brand.rekhu', true);
     }
 
     private static ?Closure $model = null;

@@ -94,9 +94,18 @@ final class Conversation
     }
 
     /** Who a conversation belongs to: a user by class and id, a visitor by their anonymous id. */
+    /**
+     * Who a conversation belongs to. With tenantUsing() the tenant is part of it (tenant:{id}|App\Models\User:3): with
+     * a users table per tenant, user 3 of one tenant is not user 3 of another. Without it the key is as it always was.
+     */
     public static function owner(?Authenticatable $user, ?string $visitor): string
     {
-        return $user ? get_class($user).':'.$user->getAuthIdentifier() : ($visitor ? 'visitor:'.$visitor : 'guest');
+        if (! $user) {
+            return $visitor ? 'visitor:'.$visitor : 'guest';
+        }
+        $owner = get_class($user).':'.$user->getAuthIdentifier();
+
+        return RekhuAssistant::hasTenants() ? 'tenant:'.RekhuAssistant::tenant($user)['id'].'|'.$owner : $owner;
     }
 
     /** The first thing the user asked, as the conversation's title in a list. */

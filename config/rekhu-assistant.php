@@ -108,6 +108,14 @@ return [
         ],
     ],
 
+    // The chat's look, for apps whose customers resell it. rekhu false: nothing in the chat names Rekhu or its knowers
+    // (the widget, the cards, the texts); name, logo and colours per tenant with RekhuAssistant::brandUsing().
+    'brand' => [
+        'rekhu' => (bool) env('REKHU_ASSISTANT_REKHU_BRAND', true),
+        'logo' => env('REKHU_ASSISTANT_LOGO'),      // an https address or a data: image
+        'colors' => [],                             // accent, text, background, surface, border: '#rrggbb'
+    ],
+
     // Rekhu's knowers as tools: with rekhu/core installed (php artisan rekhu:core --install=seshat), the assistant checks
     // and fixes the print files users attach (Seshat) and knows printing machines (Rekhu Machines), for the user's tenant.
     'knowers' => [

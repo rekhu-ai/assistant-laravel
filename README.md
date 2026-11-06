@@ -801,6 +801,44 @@ Users attach files in the chat: print files (PDF, AI, EPS, PSD, TIFF, JPG, PNG, 
 - **A zip** is unpacked safely: never outside its folder, no hidden or Mac resource files, only the allowed types, at most 200 files and 300 MB (`files.upload.zip`). What was left out is said.
 - **Kept** on your disk (`files.upload.disk`, `path`) with the conversation, and removed with it. One file is at most `files.upload.max_mb` (50), one message `max_files` (10). Visitors attach nothing unless `guests.files` is on.
 
+## Multi-tenant apps and white-label
+
+For an app with many tenants on one server (a users table per tenant), and customers who resell the chat as their own:
+
+```php
+RekhuAssistant::tenantUsing(fn ($user) => ['id' => tenant()->uuid, 'name' => tenant()->name]);
+RekhuAssistant::restoreTenantUsing(fn (array $tenant) => Tenancy::switchTo($tenant['id']));   // before queued work
+RekhuAssistant::enabledUsing(fn ($user, $tenant, $scope) => Feature::for($tenant['id'])->active('new-chat'));
+RekhuAssistant::brandUsing(fn ($tenant) => ['name' => 'Print help', 'logo' => 'https://cdn.example.com/'.$tenant['id'].'.png', 'colors' => ['accent' => '#e11d48']]);
+```
+
+- **Tenants are kept apart:** with `tenantUsing()`, a conversation belongs to the tenant and the user together. User 3 of one tenant never sees user 3's conversations of another, and limits are counted per tenant and user.
+- **Later work:** the package calls `restoreTenantUsing()` with the tenant before anything it runs later (a report sent again from the queue). Call `RekhuAssistant::restoreTenant($tenant)` in jobs of your own that work for the chat.
+- **On or off:** where `enabledUsing()` says no, the chat answers 403 with `available: false`, and the widget shows nothing. That lets you roll it out tenant by tenant, next to an old chat.
+- **White-label:** set `REKHU_ASSISTANT_REKHU_BRAND=false` and nothing in the chat names Rekhu, Seshat or Rekhu Machines. `brandUsing()` gives each tenant its name, logo and colours.
+
+### Tools of several steps
+
+```php
+class QuoteMarketplace extends Tool
+{
+    protected string $description = 'Quotes a product with every supplier and gives the cheapest';
+
+    public function handle(Request $request): array
+    {
+        $this->step('Comparing 120 offers…');                                       // the user sees how far it is
+        $price = $this->route('marketplace.price', ['product' => $request->input('product')]);   // your route, as the user
+        $this->card('offers', ['rows' => $firstRows], 'First offers');              // shown right away
+        $this->usage('marketplace_quote', 120);                                     // billed with the answer
+        $artwork = $this->attachment($request->input('artwork'));                    // a file the user attached
+
+        return ['best' => $price['result']['total']];                              // all the assistant reads
+    }
+}
+```
+
+What actions used of their own arrives in `AnswerCompleted::$actionUsage` as `[['action' => 'quote_marketplace', 'kind' => 'marketplace_quote', 'units' => 120]]`. A route returns it with `Usage::attach($result, 'preflight', 1)`.
+
 ## Rekhu's knowers in the chat
 
 Install [`rekhu/core`](https://github.com/rekhu-ai/core-laravel) with its knowers and the assistant uses them by itself:

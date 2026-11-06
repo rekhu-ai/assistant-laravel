@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Rekhu\Assistant\Http\Controllers\ChatController;
 use Rekhu\Assistant\Http\Controllers\FileController;
 use Rekhu\Assistant\Http\Middleware\EnsureAccess;
+use Rekhu\Assistant\Http\Middleware\EnsureEnabled;
 use Rekhu\Assistant\Http\Middleware\EnsureProtocol;
 use Rekhu\Assistant\Http\Middleware\IdentifyVisitor;
 use Rekhu\Assistant\Http\Middleware\LimitVisitors;
@@ -37,11 +38,12 @@ class AssistantRoutes
         Route::get($prefix.'files/{file}', FileController::class)->middleware(['signed', 'throttle:30,1'])->name('rekhu.assistant.file');
 
         // the chat: the app's own middleware decides who may talk to it, and RekhuAssistant::accessUsing() after it
-        Route::middleware([EnsureProtocol::class, ...(array) ($options['middleware'] ?? config('rekhu-assistant.middleware', ['web', 'auth'])), EnsureAccess::class])
+        Route::middleware([EnsureProtocol::class, ...(array) ($options['middleware'] ?? config('rekhu-assistant.middleware', ['web', 'auth'])), EnsureAccess::class, EnsureEnabled::class])
             ->prefix($prefix.'chat')
             ->name('rekhu.assistant.')
             ->group(function () {
-                Route::post('/', [ChatController::class, 'send'])->middleware('throttle:30,1')->name('chat');
+                // per owner (tenant and user together), so user 3 of one tenant never uses up user 3's limit of another
+                Route::post('/', [ChatController::class, 'send'])->middleware('throttle:rekhu-assistant')->name('chat');
                 Route::get('/', [ChatController::class, 'history'])->name('history');
                 Route::delete('/', [ChatController::class, 'forget'])->name('forget');
                 // the user's conversations, newest first, for a chat panel with a list (?scope= for a chat of its own)
@@ -54,7 +56,7 @@ class AssistantRoutes
         // the public chat, for visitors who are not signed in: only when the app turns it on. The web middleware keeps
         // the CSRF check; every visitor, IP address and day is capped.
         if ($options['guests'] ?? config('rekhu-assistant.guests.enabled')) {
-            Route::middleware([EnsureProtocol::class, ...(array) ($options['guest_middleware'] ?? config('rekhu-assistant.guests.middleware', ['web'])), IdentifyVisitor::class])
+            Route::middleware([EnsureProtocol::class, ...(array) ($options['guest_middleware'] ?? config('rekhu-assistant.guests.middleware', ['web'])), IdentifyVisitor::class, EnsureEnabled::class])
                 ->prefix($prefix.'visitor/chat')
                 ->name('rekhu.assistant.visitor')
                 ->group(function () {

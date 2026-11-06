@@ -46,6 +46,11 @@ return [
     'seshat_fixed' => 'Het drukklare bestand',
     'seshat_proof' => 'De drukproef',
     'seshat_done' => 'gedaan',
+    'seshat_check_plain' => 'Het bestand wordt gecontroleerd…',
+    'seshat_fix_plain' => 'Het bestand wordt hersteld…',
+    'seshat_decision_fix_plain' => 'Wij herstellen het',
+    'seshat_fix_message_plain' => 'Herstel :name',
+    'not_available' => 'De assistent is hier niet beschikbaar.',
     'seshat_codes' => [
         'set_trim_box' => 'Snijmaat ingesteld',
         'add_bleed' => 'Afloop toegevoegd',

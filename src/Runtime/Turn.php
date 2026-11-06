@@ -51,7 +51,7 @@ class Turn
     private ?string $locale = null;
 
     /** What this answer used, for AnswerCompleted. */
-    private array $used = ['model' => null, 'input' => 0, 'output' => 0, 'cache_read' => 0, 'cache_write' => 0, 'actions' => []];
+    private array $used = ['model' => null, 'input' => 0, 'output' => 0, 'cache_read' => 0, 'cache_write' => 0, 'actions' => [], 'action_usage' => []];
 
     /** $visitor: the anonymous id of a visitor in the public chat; they have no user and only the guest actions. */
     public function __construct(private Request $request, private Conversation $conversation, private Closure $emit, private ?string $visitor = null)
@@ -157,7 +157,7 @@ class Turn
                 AnswerCompleted::dispatch($user, $this->visitor, $this->visitor !== null ? RekhuAssistant::visitors() : RekhuAssistant::tenant($user),
                     $this->conversation->id, $failed ? null : ($this->conversation->answered($answer) ? $answer : null), $this->scope,
                     $this->used['model'] ?? $model, $this->used['input'], $this->used['output'], $this->used['cache_read'], $this->used['cache_write'],
-                    $calls, $this->used['actions'], $stop, (int) round((hrtime(true) - $started) / 1e6), $failed);
+                    $calls, $this->used['actions'], $stop, (int) round((hrtime(true) - $started) / 1e6), $failed, $this->used['action_usage']);
             }
         }
     }
@@ -206,7 +206,7 @@ class Turn
         }
         ($this->emit)(['type' => 'step', 'label' => $action['label'] ?? __('rekhu-assistant::messages.working')]);
         $started = hrtime(true);
-        $outcome = Dispatcher::run($action, $pending['input'], $this->request, $this->conversation);
+        $outcome = $this->usageOf($pending['tool'], Dispatcher::run($action, $pending['input'], $this->request, $this->conversation, $this->emit));
         $this->trace($pending['tool'], $pending['input'], $outcome, $started);
         $this->card($action, $outcome);
         $this->conversation->report('I confirmed "'.$action['description'].'". '
@@ -248,7 +248,7 @@ class Turn
             return ['ok' => true, 'result' => ['status' => 'needs_confirmation', 'note' => 'The user sees a confirm button for exactly this input. Nothing has happened yet.']];
         }
         ($this->emit)(['type' => 'step', 'label' => $action['label'] ?? __('rekhu-assistant::messages.working')]);
-        $outcome = Dispatcher::run($action, $input, $this->request, $this->conversation);
+        $outcome = $this->usageOf($name, Dispatcher::run($action, $input, $this->request, $this->conversation, $this->emit));
         $this->card($action, $outcome);
 
         return $outcome;
@@ -348,6 +348,17 @@ class Turn
 
         // the internet, only as the app allows it (config web)
         return [...$tools, ...Knowers::tools($this->knowers), ...Web::tools($this->web)];
+    }
+
+    /** An action's own usage kept for AnswerCompleted, and taken off the outcome the assistant reads. */
+    private function usageOf(string $name, array $outcome): array
+    {
+        foreach ((array) ($outcome['usage'] ?? []) as $u) {
+            $this->used['action_usage'][] = ['action' => $name] + $u;
+        }
+        unset($outcome['usage']);
+
+        return $outcome;
     }
 
     /** The whole conversation is sent every time; a cache mark on its last block makes it a cheap cache read next time. */

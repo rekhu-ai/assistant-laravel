@@ -2,7 +2,10 @@
 
 namespace Rekhu\Assistant;
 
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Rekhu\Assistant\Console\CheckCommand;
 use Rekhu\Assistant\Console\InstallCommand;
@@ -11,6 +14,7 @@ use Rekhu\Assistant\Console\ScanCommand;
 use Rekhu\Assistant\Console\StatusCommand;
 use Rekhu\Assistant\Console\TestCommand;
 use Rekhu\Assistant\Console\TryCommand;
+use Rekhu\Assistant\Runtime\Conversation;
 use Rekhu\Assistant\View\Widget;
 
 class AssistantServiceProvider extends ServiceProvider
@@ -22,6 +26,7 @@ class AssistantServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        RateLimiter::for('rekhu-assistant', fn (Request $request) => Limit::perMinute(30)->by(Conversation::owner($request->user(), null)));
         // the app may register the routes itself, in its own route file (RekhuAssistant::routes())
         if (! RekhuAssistant::$ignoresRoutes && config('rekhu-assistant.routes', true)) {
             $this->loadRoutesFrom(__DIR__.'/../routes/assistant.php');

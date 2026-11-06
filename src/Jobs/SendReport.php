@@ -8,6 +8,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Rekhu\Assistant\RekhuAssistant;
 use Rekhu\Assistant\Runtime\Platform;
 use Throwable;
 
@@ -23,6 +24,8 @@ final class SendReport implements ShouldQueue
 
     public function handle(): void
     {
+        // later work runs outside the request: the app is put back in the tenant first (a database per tenant)
+        RekhuAssistant::restoreTenant(['id' => $this->who['x-tenant'] ?? null, 'name' => $this->who['x-tenant-name'] ?? null]);
         try {
             Platform::sendReport($this->who, $this->report);
         } catch (Throwable $e) {

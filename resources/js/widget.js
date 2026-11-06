@@ -1,4 +1,4 @@
-/*! @rekhu/assistant-widget 0.6.1 · https://rekhu.com · generated from src/index.js, do not edit */
+/*! @rekhu/assistant-widget 0.7.0 · https://rekhu.com · generated from src/index.js, do not edit */
 (() => {
 /*
  * The Rekhu Assistant widget: a chat button and panel as <rekhu-assistant>, in its own shadow DOM so the app's CSS and
@@ -50,6 +50,7 @@ header button:hover { opacity: 1; background: rgba(255,255,255,.15); }
 .chip button { border: 0; background: none; cursor: pointer; color: #6b7280; font: inherit; }
 .files { margin-top: 6px; font-size: 12px; opacity: .85; }
 .files li { margin-inline-start: 16px; }
+header img.logo { height: 22px; max-width: 96px; object-fit: contain; margin-inline-end: 8px; }
 .card img.picture { display: block; max-width: 100%; max-height: 320px; margin: 6px 0; border-radius: 6px; border: 1px solid #e5e7eb; }
 .card dl.rows { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 6px 0; }
 .btn { border: 0; border-radius: 8px; padding: 7px 12px; font: inherit; font-weight: 600; cursor: pointer; background: var(--c); color: #fff; text-decoration: none; display: inline-block; }
@@ -429,6 +430,11 @@ function createClient(options = {}) {
         async history() {
             const id = client.conversation;
             const response = await request('GET', null, 'application/json', scoped(id ? `${opts().endpoint.includes('?') ? '&' : '?'}conversation=${encodeURIComponent(id)}` : ''));
+            // the app turned the chat off for this user or tenant (enabledUsing): the widget shows nothing
+            if (response.status === 403) {
+                const why = await response.json().catch(() => ({}));
+                if (why.available === false) throw Object.assign(new Error(why.message || words().unavailable), { status: 403, available: false });
+            }
             if (!response.ok) throw new Error(words().unavailable);
             return response.json();
         },
@@ -616,8 +622,8 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
             if (link && !link.hasAttribute('download') && this.go(link.getAttribute('href'))) e.preventDefault();
         });
         this.greet();
-        // the conversation so far, and the server's greeting when the app gave none here
-        if (this.conversation || !s.greeting || !s.quick) this.restore();
+        // the conversation so far, the server's greeting, its brand, and whether the chat is there for this user at all
+        this.restore();
         if (this.load('open') === '1') this.toggle(true);
     }
 
@@ -663,6 +669,7 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
             const history = this.client.history();
             this.offered = history.then((d) => d.report || null, () => null);
             const data = await history;
+            if (data.brand) this.brand(data.brand);
             if (!this.settings.greeting && data.greeting) this.serverGreeting = data.greeting;
             if (Array.isArray(data.quick) && !(data.messages || []).length) this.quick = data.quick;
             if (!(data.messages || []).length) this.greet();
@@ -670,7 +677,37 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
                 this.add(line.role, markdown(line.text));
                 if (line.role === 'bot' && line.id) await this.reportLink(line.id);
             }
-        } catch { /* the greeting stays */ }
+        } catch (error) {
+            // not available for this user or tenant: no launcher, no panel
+            if (error?.available === false) { this.style.display = 'none'; this.emit('unavailable', { message: error.message }); }
+            /* else the greeting stays */
+        }
+    }
+
+    /**
+     * The look the server gives this tenant (white-label): its name in the header, its logo, its colours. The page's own
+     * name setting and CSS variables win; colours are #hex only, the logo an https, same-site or data: image.
+     */
+    brand(b) {
+        const root = this.shadowRoot;
+        if (!root || !b || typeof b !== 'object') return;
+        if (typeof b.name === 'string' && b.name && !this.settings.name) {
+            root.querySelector('[part="title"]').textContent = b.name;
+            root.querySelector('.launcher').setAttribute('aria-label', b.name);
+            this.panel.setAttribute('aria-label', b.name);
+        }
+        if (typeof b.logo === 'string' && /^(https:\/\/|\/[^/]|data:image\/(png|jpeg|webp|svg\+xml);base64,)/.test(b.logo) && !root.querySelector('[part="logo"]')) {
+            const img = document.createElement('img');
+            img.setAttribute('part', 'logo');
+            img.className = 'logo';
+            img.alt = '';
+            img.src = b.logo;
+            root.querySelector('header').prepend(img);
+        }
+        const vars = { accent: '--c', text: '--rekhu-text', background: '--rekhu-bg', surface: '--rekhu-surface', border: '--rekhu-border' };
+        for (const [k, v] of Object.entries(b.colors || {})) {
+            if (vars[k] && /^#[0-9a-fA-F]{3,8}$/.test(String(v)) && !this.style.getPropertyValue(vars[k])) this.style.setProperty(vars[k], v);
+        }
     }
 
     toggle(open = !this.panel.classList.contains('open')) {

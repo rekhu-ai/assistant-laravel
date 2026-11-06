@@ -45,6 +45,8 @@ final class AnswerCompleted
         public readonly ?string $stopReason,
         public readonly int $milliseconds,
         public readonly bool $failed = false,
+        /** What the actions used of their own (a preflight check, an image improved): [['action', 'kind', 'units', 'meta'?]] */
+        public readonly array $actionUsage = [],
     ) {}
 
     /** Every token the answer took, read from the cache and written to it included. */

@@ -73,7 +73,16 @@ final class ChatController
             'quick' => $conversation ? null : (Quick::for($request->user()) ?: null),
             // the reasons a user may give when reporting an answer, in their language
             'report' => Reports::offer($visitor !== null),
+            // the chat's look for this tenant, when the app gives it one (brandUsing, a logo, colours, white-label)
+            'brand' => RekhuAssistant::branded() ? self::brandFor($request, $visitor !== null) : null,
         ], fn ($value) => $value !== null));
+    }
+
+    private static function brandFor(Request $request, bool $visitor): array
+    {
+        $brand = RekhuAssistant::brand($visitor ? RekhuAssistant::visitors() : RekhuAssistant::tenant($request->user()));
+
+        return array_filter(['name' => $brand['name'], 'logo' => $brand['logo'], 'colors' => $brand['colors'] ?: null, 'rekhu' => $brand['rekhu']], fn ($v) => $v !== null);
     }
 
     /** "Report a problem" on one answer of the user's own conversation; the report is built from what the server kept. */

@@ -46,6 +46,11 @@ return [
     'seshat_fixed' => 'الملف الجاهز للطباعة',
     'seshat_proof' => 'بروفة الطباعة',
     'seshat_done' => 'تم',
+    'seshat_check_plain' => 'جارٍ فحص الملف…',
+    'seshat_fix_plain' => 'جارٍ إصلاح الملف…',
+    'seshat_decision_fix_plain' => 'نصلحه نحن',
+    'seshat_fix_message_plain' => 'أصلح :name',
+    'not_available' => 'المساعد غير متاح هنا.',
     'seshat_codes' => [
         'set_trim_box' => 'تم تحديد مقاس القص',
         'add_bleed' => 'تمت إضافة حواف القص',

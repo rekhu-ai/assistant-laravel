@@ -6,6 +6,7 @@ namespace Rekhu\Assistant\Runtime;
 
 use Closure;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Rekhu\Assistant\RekhuAssistant;
 use Rekhu\Core\Exceptions\RekhuException;
 use Rekhu\Core\Rekhu;
 
@@ -82,6 +83,7 @@ class Knowers
     /** One knower tool for the user, with its cards; the result is what the model reads. */
     public static function call(string $name, array $input, ?Authenticatable $user, array $tenant, Conversation $conversation, Closure $emit, ?string $locale = null): array
     {
+        self::$branded = RekhuAssistant::brand($tenant)['rekhu'];
         // the cards speak the user's language when the package has texts for it, else the app's
         $short = strtolower(substr((string) $locale, 0, 2));
         $previous = app()->getLocale();
@@ -107,7 +109,7 @@ class Knowers
         if (! $file) {
             return ['ok' => false, 'error' => 'no attached file with that id in this conversation; ask the user to attach it'];
         }
-        $emit(['type' => 'step', 'label' => __('rekhu-assistant::messages.seshat_check')]);
+        $emit(['type' => 'step', 'label' => self::say('seshat_check')]);
         $order = (array) ($input['order'] ?? []);
         $seshat = Rekhu::seshat()->for($user)->forTenant((string) $tenant['id'], (string) $tenant['name']);
         $result = $seshat->check($file['bytes'], $order, name: $file['name']);
@@ -117,8 +119,8 @@ class Knowers
             'status' => $result['status'] ?? null,
             'text' => __('rekhu-assistant::messages.seshat_'.($result['status'] ?? 'ok')),
             'image' => self::proof($seshat, $result['file_id'] ?? null),
-            'rows' => array_map(fn ($f) => ['label' => self::label((string) $f['code']), 'value' => __('rekhu-assistant::messages.seshat_decision_'.($f['decision'] ?? 'note'))], array_slice($findings, 0, 12)),
-            'buttons' => $fixable ? [['label' => __('rekhu-assistant::messages.seshat_fix_button'), 'message' => __('rekhu-assistant::messages.seshat_fix_message', ['name' => $file['name']])]] : [],
+            'rows' => array_map(fn ($f) => ['label' => self::label((string) $f['code']), 'value' => self::say('seshat_decision_'.($f['decision'] ?? 'note'))], array_slice($findings, 0, 12)),
+            'buttons' => $fixable ? [['label' => __('rekhu-assistant::messages.seshat_fix_button'), 'message' => self::say('seshat_fix_message', ['name' => $file['name']])]] : [],
         ]]);
 
         return ['ok' => true, 'result' => [
@@ -130,7 +132,7 @@ class Knowers
 
     private static function fix(array $input, ?Authenticatable $user, array $tenant, Closure $emit): array
     {
-        $emit(['type' => 'step', 'label' => __('rekhu-assistant::messages.seshat_fix')]);
+        $emit(['type' => 'step', 'label' => self::say('seshat_fix')]);
         $seshat = Rekhu::seshat()->for($user)->forTenant((string) $tenant['id'], (string) $tenant['name']);
         $result = $seshat->fix((string) ($input['file_id'] ?? ''), $input['fixes'] ?? 'auto', (array) ($input['order'] ?? []));
         if (empty($result['applied'])) {
@@ -170,6 +172,23 @@ class Knowers
 
         return ['ok' => true, 'result' => $result];
     }
+
+    /** A text of the cards; white-label (brand.rekhu off), the one that names no maker when the package has it. */
+    private static function say(string $key, array $replace = []): string
+    {
+        $plain = 'rekhu-assistant::messages.'.$key.'_plain';
+        if (! self::$branded) {
+            $text = __($plain, $replace);
+            if ($text !== $plain) {
+                return (string) $text;
+            }
+        }
+
+        return (string) __('rekhu-assistant::messages.'.$key, $replace);
+    }
+
+    /** Whether the tenant of this call shows Rekhu's names (brand.rekhu); set per call. */
+    private static bool $branded = true;
 
     /** The first page with its trim, bleed and safe zone, as a data: URL for the card; none when it cannot be drawn. */
     private static function proof($seshat, ?string $fileId): ?string
