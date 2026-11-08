@@ -5,6 +5,7 @@ return [
     'unavailable' => 'De assistent is nu niet bereikbaar. Probeer het zo opnieuw.',
     'busy' => 'De assistent is nu erg druk. Probeer het over een minuut opnieuw.',
     'paused' => 'De assistent staat op pauze of heeft zijn limiet voor deze maand bereikt. Laat het de beheerder van deze app weten.',
+    'region' => 'De assistent is nu niet beschikbaar door de privacy-instelling van deze app. Laat het de beheerder van deze app weten.',
     'credit' => 'De assistent staat voorlopig uit, omdat het abonnement aandacht nodig heeft. Laat het de beheerder van deze app weten.',
     'conversation' => 'Er ging iets mis in dit gesprek. Begin een nieuwe chat.',
     'too_big' => 'Dit verzoek vraagt meer stappen dan één antwoord toestaat, dus ik ben hier gestopt. Zeg "ga door" om verder te gaan, of splits het op in kleinere delen, bijvoorbeeld een paar tegelijk.',

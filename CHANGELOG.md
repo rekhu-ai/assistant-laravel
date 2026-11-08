@@ -2,6 +2,10 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.13.1 · 8 November 2026
+
+- **Europe-only accounts:** when the Rekhu account behind the app processes data in Europe only and a model call cannot be served in the EU, the user reads that the assistant is not available under the app's privacy setting and is asked to tell the app's administrator, in English, Arabic or Dutch, instead of being asked to try again. The log names the cause and where to change it.
+
 ## 0.13.0 · 6 November 2026
 
 For multi-tenant apps (a users table per tenant) and apps whose customers resell the chat:

@@ -139,6 +139,18 @@ final class ChatTest extends TestCase
         Log::shouldHaveReceived('warning')->withArgs(fn ($message) => str_contains($message, 'paused or at its monthly limit'))->once();
     }
 
+    public function test_a_europe_only_refusal_points_the_user_to_the_administrator(): void
+    {
+        Log::spy();
+        $this->rekhuRefuses(403, 'region_unavailable');
+
+        $events = $this->events($this->actingAs($this->user())->post('/rekhu/assistant/chat', ['message' => 'Hi'], $this->headers())->streamedContent());
+
+        $this->assertSame(['start', 'error'], array_column($events, 'type'));
+        $this->assertSame(__('rekhu-assistant::messages.region'), $events[1]['message']);
+        Log::shouldHaveReceived('error')->withArgs(fn ($message) => str_contains($message, 'Europe only'))->once();
+    }
+
     public function test_used_up_credit_is_logged_as_an_error(): void
     {
         Log::spy();

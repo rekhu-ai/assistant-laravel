@@ -31,7 +31,7 @@ use Rekhu\Assistant\Runtime\CacheConversations;
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.13.0';
+    public const VERSION = '0.13.1';
 
     /** The Rekhu product the keys of this package belong to: agk_<account>_assistant_<secret>. */
     public const PRODUCT = 'assistant';

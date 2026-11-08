@@ -5,6 +5,7 @@ return [
     'unavailable' => 'The assistant cannot be reached right now. Please try again in a moment.',
     'busy' => 'The assistant is very busy right now. Please try again in a minute.',
     'paused' => 'The assistant is paused or has reached its limit for this month. Please let the administrator of this app know.',
+    'region' => 'The assistant is not available under this app\'s privacy setting right now. Please let the administrator of this app know.',
     'credit' => 'The assistant is switched off for now because its plan needs attention. Please let the administrator of this app know.',
     'conversation' => 'Something went wrong in this conversation. Please start a new chat.',
     'too_big' => 'This request needs more steps than one answer allows, so I stopped here. Say "continue" to go on, or split it into smaller parts, for example a few at a time.',
