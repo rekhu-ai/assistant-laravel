@@ -34,7 +34,7 @@ use Rekhu\Assistant\Runtime\DatabaseConversations;
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.14.0';
+    public const VERSION = '0.14.1';
 
     /** The Rekhu product the keys of this package belong to: agk_<account>_assistant_<secret>. */
     public const PRODUCT = 'assistant';

@@ -730,7 +730,7 @@ Signed-in users see their earlier conversations in a list next to the chat. They
 php artisan migrate
 ```
 
-From then on conversations are kept 90 days after their last message. Without the table they stay in your cache for `conversation_minutes`, as before.
+From then on conversations are kept 90 days after their last message. Without the table they stay in your cache for `conversation_minutes`.
 
 **2. Choose how long.** In `config/rekhu-assistant.php` (or `.env`):
 
@@ -889,7 +889,7 @@ php artisan rekhu:core --install=machines
 ```
 
 - **Seshat:** a user attaches a print file and says what it is for ("an A5 flyer"). The assistant has Seshat check it, and the user sees a card with the findings, a proof of the page (trim, bleed, safe zone) and a **Fix it** button. After the fix, the print-ready file comes as a download, and the assistant says what is still the user's to decide.
-- **Rekhu Machines:** "which of our machines for 5,000 business cards?", "is 18,000 sheets an hour right for our SM 74?"
+- **Rekhu Machines:** "which of our machines for 5,000 business cards?", "is 18,000 sheets an hour right for our B2 offset press?"
 
 They run for the user's tenant (`RekhuAssistant::tenantUsing()`) and are kept in rekhu/core's usage table. Turn them off with `REKHU_ASSISTANT_KNOWERS=false`; visitors get them only with `guests.knowers`.
 
@@ -901,7 +901,7 @@ The assistant can search and read pages, **locked to what you allow**:
 'web' => [
     'enabled' => true,
     'purpose' => 'Public paper specifications and supplier prices',
-    'sites' => ['www.antalis.nl', '*.papyrus.com'],
+    'sites' => ['www.paper-supplier.example', '*.paper-specs.example'],
     'search' => true,       // search those sites (charged per search by Rekhu)
     'read' => true,         // read a page of those sites
     'per_answer' => 3,
@@ -1102,7 +1102,7 @@ php artisan rekhu:assistant:check --user=12 --locale=ar
 |---|---|---|
 | "that record does not exist" for a record that does | The list gave one id and the route looks the record up by another: a slug, a code, a `row_id`, or the same id in another language | Let the list return the value the route takes, as `id` |
 | Wrong totals, or "only some" of the records | The result was longer than the assistant reads, or a list without paging | `fields: [...]`, fewer per page, or the total in the result |
-| Filters ignored, always the same answer | Fixed in 0.7.1: update the package | |
+| Filters ignored, always the same answer | A service the action uses was built once and kept the first request it saw (a singleton that reads the request in its constructor). The package builds the controller afresh for every call, but not the services it gets | Read the filters from `$request` in the method, or pass them to the service as arguments |
 | The answer is right in one language, wrong in another | Records or texts looked up by the request's language | Run `try` and `check` with `--locale` for each language |
 | An action is never used | It is not offered to that user, or its description does not say when to use it | `rekhu:assistant --user=…`, then a clearer description |
 

@@ -19,7 +19,7 @@ use Rekhu\Assistant\RekhuAssistant;
  *     'web' => [
  *         'enabled' => true,
  *         'purpose' => 'Paper specifications and public supplier prices',
- *         'sites' => ['*.antalis.nl', 'www.papyrus.com'],
+ *         'sites' => ['*.paper-supplier.example', 'www.paper-specs.example'],
  *         'search' => true, 'per_answer' => 3, 'per_day' => 40,
  *     ],
  */

@@ -2,6 +2,11 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.14.1 · 11 November 2026
+
+- **Examples use invented names.** The web lookup example uses invented domains (`www.paper-supplier.example`, `*.paper-specs.example`), the help pages of the example app name no carrier, and the Rekhu Machines examples name no make.
+- The README and PROTOCOL.md describe the package as it is, without version history. The troubleshooting row for filters that are ignored says what causes it: a service that kept the first request it saw.
+
 ## 0.14.0 · 11 November 2026
 
 - **Conversation history.** Your users find their earlier conversations again, in a list next to the chat (the widget 0.8 shows it): open one and go on in it, search, rename and delete.

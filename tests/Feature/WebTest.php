@@ -37,12 +37,12 @@ final class WebTest extends TestCase
 
     public function test_sites_match_exactly_or_as_a_wildcard(): void
     {
-        $sites = ['www.antalis.nl', '*.paper.test'];
-        $this->assertTrue(Web::allowed('www.antalis.nl', $sites));
-        $this->assertFalse(Web::allowed('evil-antalis.nl', $sites));
+        $sites = ['www.paper-supplier.example', '*.paper.test'];
+        $this->assertTrue(Web::allowed('www.paper-supplier.example', $sites));
+        $this->assertFalse(Web::allowed('evil-paper-supplier.example', $sites));
         $this->assertTrue(Web::allowed('shop.paper.test', $sites));
         $this->assertTrue(Web::allowed('paper.test', $sites));
-        $this->assertFalse(Web::allowed('paper.test.evil.com', $sites));
+        $this->assertFalse(Web::allowed('paper.test.evil.example', $sites));
     }
 
     public function test_addresses_inside_the_network_are_never_read(): void

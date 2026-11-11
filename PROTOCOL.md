@@ -272,4 +272,4 @@ A client that draws charts escapes every text in them. A block that is not valid
 
 A server package and the widget agree on the version with `X-Rekhu-Protocol` and the `start` event's `protocol`. New optional fields and new card kinds can come within version 1; a client ignores what it does not know. Anything that breaks an existing client is version 2.
 
-Within version 1: the conversations list gained `questions`, `before`, `next` and `q`, renaming and deleting by id, and the GET's `history` (assistant-laravel 0.14, assistant-node 0.8, widget 0.8, rekhu_assistant 0.2).
+Within version 1, the conversations list's `questions`, `before`, `next` and `q`, renaming and deleting by id, and the GET's `history` come with assistant-laravel 0.14, assistant-node 0.8, widget 0.8 and rekhu_assistant 0.2 or newer.
