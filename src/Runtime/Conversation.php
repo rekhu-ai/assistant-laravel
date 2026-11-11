@@ -33,6 +33,12 @@ final class Conversation
     /** The number of the next message id. */
     private int $next = 1;
 
+    /** How many messages the user sent in it, counted on, also after its oldest turns were dropped. */
+    private int $asked = 0;
+
+    /** How many of the user's messages the kept messages held when it was opened or last saved. */
+    private int $counted = 0;
+
     /** Whether the conversation was found in the store, rather than started now. */
     public bool $exists = false;
 
@@ -71,6 +77,8 @@ final class Conversation
             if (! isset($stored['next'])) {
                 $conversation->numberStoredMessages();
             }
+            $conversation->counted = $conversation->questions();
+            $conversation->asked = (int) ($stored['asked'] ?? $conversation->counted);
         }
 
         return $conversation;
@@ -78,6 +86,7 @@ final class Conversation
 
     public function save(): void
     {
+        $this->asked += max(0, $this->questions() - $this->counted);
         // the oldest turns go first when it grows long; a cut never starts on a tool result without its call
         while (count($this->messages) > 60) {
             array_shift($this->messages);
@@ -85,12 +94,25 @@ final class Conversation
                 array_shift($this->messages);
             }
         }
+        $this->counted = $this->questions();
         RekhuAssistant::store()->put($this->owner, $this->id, [
-            'messages' => $this->messages, 'pending' => $this->pending, 'next' => $this->next, 'scope' => $this->scope, 'attachments' => $this->attachments,
+            'messages' => $this->messages, 'pending' => $this->pending, 'next' => $this->next, 'scope' => $this->scope, 'attachments' => $this->attachments, 'asked' => $this->asked,
         ], (int) config('rekhu-assistant.conversation_minutes', 1440), [
             'user' => $this->user, 'visitor' => $this->visitor, 'tenant' => $this->visitor !== null ? RekhuAssistant::visitors() : RekhuAssistant::tenant($this->user),
-            'scope' => $this->scope, 'title' => $this->title(),
+            'scope' => $this->scope, 'title' => $this->title(), 'questions' => $this->asked, 'search' => $this->searchable(),
         ]);
+    }
+
+    /** How many of the kept messages are the user's own questions. */
+    private function questions(): int
+    {
+        return count(array_filter($this->messages, fn ($m) => $m['role'] === 'user' && is_string($m['content']) && trim($m['content']) !== ''));
+    }
+
+    /** The user's own questions as one text, for the search in the list; never the answers or what actions returned. */
+    private function searchable(): string
+    {
+        return implode(' ', array_map(fn ($m) => trim($m['content']), array_filter($this->messages, fn ($m) => $m['role'] === 'user' && is_string($m['content']))));
     }
 
     /** Who a conversation belongs to: a user by class and id, a visitor by their anonymous id. */

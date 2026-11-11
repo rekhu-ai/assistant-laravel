@@ -179,8 +179,19 @@ return [
     // Help files the assistant answers from: markdown, one topic per file. Empty means resources/rekhu/help.
     'help_path' => null,
 
-    // How long a conversation is kept for its user, in minutes.
+    // How long a conversation is kept for its user, in minutes, when conversations are kept in the cache.
     'conversation_minutes' => 1440,
+
+    // Where conversations are kept, so a user finds earlier ones in the chat's list. "auto": in the database once the
+    // package's migration has run (php artisan migrate), else in the cache for conversation_minutes; "database" or
+    // "cache" choose. In the database a conversation is kept keep_days after its last message; the package removes
+    // older ones once a day with the app's scheduler (php artisan rekhu-assistant:prune does it by hand).
+    'conversations' => [
+        'store' => env('REKHU_ASSISTANT_CONVERSATIONS', 'auto'),
+        'keep_days' => (int) env('REKHU_ASSISTANT_KEEP_DAYS', 90),
+        'connection' => null,
+        'table' => 'rekhu_assistant_conversations',
+    ],
 
     // "Report a problem" under each answer: the user picks what went wrong and may say what they expected. The report
     // goes to Reports on the project's Assistant tab in your Rekhu account, with the question, the answer, the

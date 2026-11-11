@@ -7,9 +7,12 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
+use Rekhu\Assistant\Contracts\ConversationHistory;
 use Rekhu\Assistant\Contracts\ConversationStore;
 use Rekhu\Assistant\Http\AssistantRoutes;
 use Rekhu\Assistant\Runtime\CacheConversations;
+use Rekhu\Assistant\Runtime\DatabaseConversations;
 
 /**
  * What the package knows about itself and the app: the key, and who the customer is behind a signed-in user.
@@ -31,7 +34,7 @@ use Rekhu\Assistant\Runtime\CacheConversations;
  */
 class RekhuAssistant
 {
-    public const VERSION = '0.13.1';
+    public const VERSION = '0.14.0';
 
     /** The Rekhu product the keys of this package belong to: agk_<account>_assistant_<secret>. */
     public const PRODUCT = 'assistant';
@@ -249,6 +252,8 @@ class RekhuAssistant
 
     private static mixed $store = null;
 
+    private static ?bool $hasTable = null;
+
     /**
      * Where conversations are kept: a class (or instance) of Rekhu\Assistant\Contracts\ConversationStore. The default
      * keeps them in the app's cache for conversation_minutes; your own store keeps them in your own tables, with a list
@@ -259,17 +264,41 @@ class RekhuAssistant
     public static function conversationsUsing(mixed $store): void
     {
         self::$store = $store;
+        self::$hasTable = null;
     }
 
     public static function store(): ConversationStore
     {
-        $store = self::$store ?? CacheConversations::class;
+        $store = self::$store ?? self::defaultStore();
         $store = is_string($store) ? app($store) : $store;
         if (! $store instanceof ConversationStore) {
             throw new \InvalidArgumentException('RekhuAssistant::conversationsUsing() needs a '.ConversationStore::class);
         }
 
         return $store;
+    }
+
+    /** Whether the store can page, search and rename conversations (both of the package's stores can). */
+    public static function history(): ?ConversationHistory
+    {
+        $store = self::store();
+
+        return $store instanceof ConversationHistory ? $store : null;
+    }
+
+    /**
+     * The package's own store: the database once the package's migration has run (conversations.store "auto"), else
+     * the cache; "database" or "cache" chooses it outright.
+     */
+    private static function defaultStore(): string
+    {
+        $choice = (string) config('rekhu-assistant.conversations.store', 'auto');
+        if ($choice === 'database' || $choice === 'cache') {
+            return $choice === 'database' ? DatabaseConversations::class : CacheConversations::class;
+        }
+        self::$hasTable ??= (bool) rescue(fn () => Schema::connection(config('rekhu-assistant.conversations.connection'))->hasTable(DatabaseConversations::name()), false, false);
+
+        return self::$hasTable ? DatabaseConversations::class : CacheConversations::class;
     }
 
     /** The key's parts: agk_<customer>_<agent>_<secret>. Null when there is no usable key. */

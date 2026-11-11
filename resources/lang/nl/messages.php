@@ -30,6 +30,7 @@ return [
     'report_thanks' => 'Bedankt, we kijken ernaar.',
     'report_failed' => 'De melding kon niet worden verstuurd.',
     'report_not_found' => 'Dit gesprek heeft zo\'n antwoord niet.',
+    'conversation_not_found' => 'Dat gesprek wordt niet meer bewaard.',
     'report_too_many' => 'Dat waren veel meldingen. Probeer het later opnieuw.',
     'no_access' => 'Je kunt de assistent niet gebruiken. Vraag een beheerder om toegang.',
     'seshat_check' => 'Seshat controleert het bestand…',

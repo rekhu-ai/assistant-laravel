@@ -15,8 +15,10 @@ One URL, chosen by the app (for example `/rekhu/assistant/chat`), with three met
 | Method | Does |
 |---|---|
 | `POST` | one turn: the user's message or their click on Confirm; answered as a stream of events |
-| `GET ?conversation=…` | what the user saw of a conversation, to show it again after a reload |
-| `DELETE` | forgets a conversation ("New") |
+| `GET ?conversation=…` | what the user saw of a conversation, to show it again after a reload or when it is opened from the list |
+| `DELETE` | deletes a conversation |
+
+And, for a chat with a list of earlier conversations, `<endpoint>/conversations` (see "Conversations" below).
 
 ## Who is talking
 
@@ -202,13 +204,45 @@ The client sends only the id, never the answer's text: the server package reads 
 
 A second report on the same answer by the same user replaces the first. The user is thanked even when the report could not be passed on at once; the server package tries again.
 
-## GET …/conversations: the user's conversations
+## Conversations: the list, opening, renaming, deleting
 
-For a chat panel with a list: `{ "conversations": [{ "id", "title", "scope", "updated_at" }] }`, newest first, for the signed-in user (`?scope=` for a chat of its own, `?limit=` up to 100). `title` is the first thing the user asked.
+A signed-in user's conversations are kept, so a chat can show them in a list (a sidebar) and open an earlier one. The GET of the chat says whether the caller has one: `"history": true` (in the answer with and without `conversation`). The public chat has no list; there `history` is absent.
 
-## DELETE: start over
+### GET …/conversations
 
-`DELETE <endpoint>` with `{"conversation": "8f3a…"}` forgets that conversation. Answers `204`.
+`GET <endpoint>/conversations?scope=&limit=&before=&q=`, `Accept: application/json`:
+
+```json
+{
+  "conversations": [
+    { "id": "8f3a…", "title": "Where is my last order?", "scope": null, "updated_at": "2026-11-11T09:12:44+00:00", "questions": 3 }
+  ],
+  "next": "2026-11-02T16:40:01+00:00|5c1e…"
+}
+```
+
+| Parameter | |
+|---|---|
+| `scope` | the chat of its own (see `POST`); without it, the main chat |
+| `limit` | how many, 1 to 100; 30 by default |
+| `before` | the `next` of the page before, for the next page; `next` is absent on the last page |
+| `q` | search: conversations whose title or questions contain it, ignoring case |
+
+Newest first. `title` is the name the user gave it, else the first thing they asked. `questions` is how many messages the user sent. A client treats `next` as opaque.
+
+### PATCH …/conversations/{id}: rename
+
+`PATCH <endpoint>/conversations/8f3a…` with `{"title": "Order questions"}` names it (at most 80 characters); an empty title goes back to the first question. Answers `200` with `{ "conversation": { … } }`, the item as the list shows it. Another user's id, or one that is no longer kept: `404`.
+
+### DELETE …/conversations/{id}: delete
+
+`DELETE <endpoint>/conversations/8f3a…` deletes it for good. Answers `204`. The same as `DELETE <endpoint>` with `{"conversation": "8f3a…"}`, which the public chat uses.
+
+### Opening and starting
+
+A conversation from the list opens with `GET <endpoint>?conversation=…`, and the user goes on in it by sending `conversation` with the next `POST`. A new chat sends its first `POST` without `conversation`: the earlier one stays in the list. Deleting is only for a conversation the user wants gone.
+
+How long conversations are kept is the server package's setting; one that is no longer kept leaves the list.
 
 ## Text
 
@@ -237,3 +271,5 @@ A client that draws charts escapes every text in them. A block that is not valid
 ## Changes
 
 A server package and the widget agree on the version with `X-Rekhu-Protocol` and the `start` event's `protocol`. New optional fields and new card kinds can come within version 1; a client ignores what it does not know. Anything that breaks an existing client is version 2.
+
+Within version 1: the conversations list gained `questions`, `before`, `next` and `q`, renaming and deleting by id, and the GET's `history` (assistant-laravel 0.14, assistant-node 0.8, widget 0.8, rekhu_assistant 0.2).

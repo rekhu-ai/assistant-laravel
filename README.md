@@ -50,16 +50,17 @@
 9. [Help](#help)
 10. [A public chat for visitors](#a-public-chat-for-visitors)
 11. [Reports](#reports)
-12. [Reselling to your customers](#reselling-to-your-customers): [usage per answer](#usage-per-answer) · [the model per plan](#the-model-per-plan) · [chats of their own](#chats-of-their-own) · [cards of your own](#cards-of-your-own) · [your own conversation store](#your-own-conversation-store)
-13. [Files your users attach](#files-your-users-attach)
-14. [Looking things up on the internet](#looking-things-up-on-the-internet)
-15. [Projects, usage and limits](#projects-usage-and-limits)
-16. [How it works](#how-it-works)
-17. [Security](#security)
-18. [Configuration](#configuration): [your own routes](#your-own-routes) · [translations](#translations)
-19. [Commands](#commands)
-20. [When an answer is wrong](#when-an-answer-is-wrong)
-21. [Troubleshooting](#troubleshooting)
+12. [Conversation history](#conversation-history)
+13. [Reselling to your customers](#reselling-to-your-customers): [usage per answer](#usage-per-answer) · [the model per plan](#the-model-per-plan) · [chats of their own](#chats-of-their-own) · [cards of your own](#cards-of-your-own) · [your own conversation store](#your-own-conversation-store)
+14. [Files your users attach](#files-your-users-attach)
+15. [Looking things up on the internet](#looking-things-up-on-the-internet)
+16. [Projects, usage and limits](#projects-usage-and-limits)
+17. [How it works](#how-it-works)
+18. [Security](#security)
+19. [Configuration](#configuration): [your own routes](#your-own-routes) · [translations](#translations)
+20. [Commands](#commands)
+21. [When an answer is wrong](#when-an-answer-is-wrong)
+22. [Troubleshooting](#troubleshooting)
 
 ## Requirements
 
@@ -719,6 +720,44 @@ await chat.report({ message: answer, reason: 'wrong_answer', comment: 'It was 41
 
 When Rekhu cannot be reached, the user is still thanked; the failure goes to your log and the report is tried once more, on your queue when the app has one. `php artisan rekhu:assistant` says whether reports are on and whether Rekhu takes them.
 
+## Conversation history
+
+Signed-in users see their earlier conversations in a list next to the chat. They open one and go on where they left off, search, rename or delete. On a phone the list covers the chat and closes once they pick one; in Arabic it reads right to left. The public chat for visitors has no list.
+
+**1. Keep conversations in your database.** The package brings the table; run your migrations once:
+
+```bash
+php artisan migrate
+```
+
+From then on conversations are kept 90 days after their last message. Without the table they stay in your cache for `conversation_minutes`, as before.
+
+**2. Choose how long.** In `config/rekhu-assistant.php` (or `.env`):
+
+```php
+'conversations' => [
+    'store' => env('REKHU_ASSISTANT_CONVERSATIONS', 'auto'), // auto, database or cache
+    'keep_days' => (int) env('REKHU_ASSISTANT_KEEP_DAYS', 90),
+],
+```
+
+**3. Let the scheduler clean up.** The package removes conversations past `keep_days` once a day through your app's scheduler. Make sure the scheduler runs (`php artisan schedule:work`, or the usual cron line). To clean up by hand:
+
+```bash
+php artisan rekhu-assistant:prune
+```
+
+**4. Show the list.** The widget (0.8 or newer) shows it by itself for signed-in users. A chat of your own uses these routes:
+
+| Route | Does |
+|---|---|
+| `GET …/chat/conversations?limit=&before=&q=` | a page of the user's conversations, newest first, with `next` for the following page; `q` searches titles and questions |
+| `GET …/chat?conversation={id}` | opens one: what the user saw |
+| `PATCH …/chat/conversations/{id}` with `{"title": "…"}` | renames it; an empty title goes back to the first question |
+| `DELETE …/chat/conversations/{id}` | deletes it for good |
+
+A new chat simply sends its first message without `conversation`; the earlier one stays in the list.
+
 ## Reselling to your customers
 
 Rekhu meters every model call for your account. To charge **your** customers in your own way, per answer, by plan, from their credit, the package gives you what each answer used, lets the plan choose the model, and keeps conversations where you want them.
@@ -784,13 +823,13 @@ The chat sends `{type: card, kind: price, title, data}`. Your own front end draw
 
 ### Your own conversation store
 
-By default conversations live in your cache for `conversation_minutes`. To keep them in your own tables, with a list in your own chat panel, implement `Rekhu\Assistant\Contracts\ConversationStore` (`get`, `put`, `forget`, `list`) and name it:
+The package keeps conversations in its own table (see [Conversation history](#conversation-history)) or your cache. To keep them in tables of your own, implement `Rekhu\Assistant\Contracts\ConversationStore` (`get`, `put`, `forget`, `list`), and `Rekhu\Assistant\Contracts\ConversationHistory` (`page`, `rename`) for paging, search and renaming in the list, and name it:
 
 ```php
 RekhuAssistant::conversationsUsing(App\Assistant\DatabaseConversations::class);
 ```
 
-`put()` gets the conversation's data as the package keeps it, and who it is about: the user, the visitor, the tenant, the scope and a title (the first question). `GET …/chat/conversations` lists the signed-in user's conversations from your store, newest first.
+`put()` gets the conversation's data as the package keeps it, and who it is about: the user, the visitor, the tenant, the scope, a title (the first question), how many questions it has and the user's questions as one text for the search. `GET …/chat/conversations` lists the signed-in user's conversations from your store, newest first.
 
 ## Files your users attach
 

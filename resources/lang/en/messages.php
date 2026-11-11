@@ -30,6 +30,7 @@ return [
     'report_thanks' => 'Thanks, we will look into it.',
     'report_failed' => 'Could not send the report.',
     'report_not_found' => 'There is no such answer in this conversation.',
+    'conversation_not_found' => 'That conversation is no longer kept.',
     'report_too_many' => 'That was a lot of reports. Try again later.',
     'no_access' => 'You cannot use the assistant. Ask an administrator for access.',
     'seshat_check' => 'Seshat is checking the file…',

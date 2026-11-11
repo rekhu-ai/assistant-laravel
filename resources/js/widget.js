@@ -1,4 +1,4 @@
-/*! @rekhu/assistant-widget 0.7.0 · https://rekhu.com · generated from src/index.js, do not edit */
+/*! @rekhu/assistant-widget 0.8.0 · https://rekhu.com · generated from src/index.js, do not edit */
 (() => {
 /*
  * The Rekhu Assistant widget: a chat button and panel as <rekhu-assistant>, in its own shadow DOM so the app's CSS and
@@ -99,6 +99,30 @@ textarea:focus { border-color: var(--c); }
 .debug-error { color: #991b1b; }
 .debug pre { margin: 0; padding: 6px 8px; max-height: 220px; overflow: auto; border-radius: 6px; background: rgba(127,127,127,.1); white-space: pre; text-align: left; }
 .debug pre.debug-input { max-height: none; color: #4b5563; }
+header button.menu { font-size: 16px; line-height: 1; padding: 2px 6px; }
+.body { flex: 1; display: flex; min-height: 0; position: relative; }
+.chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.side { display: none; flex-direction: column; width: 250px; flex: none; border-inline-end: 1px solid var(--rekhu-border, #e5e7eb); background: var(--rekhu-bg, #fff); min-height: 0; }
+.panel.side-open { width: min(var(--rekhu-wide-width, 760px), calc(100vw - 32px)); }
+.panel.side-open .side { display: flex; }
+.side .search { margin: 10px; padding: 7px 10px; border: 1px solid var(--rekhu-border, #d1d5db); border-radius: 8px; font: inherit; font-size: 13px; color: inherit; background: var(--rekhu-surface, #fff); outline: none; }
+.side .search:focus { border-color: var(--c); }
+.side ul { list-style: none; margin: 0; padding: 0 6px 6px; overflow-y: auto; flex: 1; }
+.side li { position: relative; border-radius: 8px; }
+.side li:hover, .side li.current { background: rgba(127,127,127,.1); }
+.side li.current { box-shadow: inset 3px 0 0 var(--c); }
+.side li.current:dir(rtl) { box-shadow: inset -3px 0 0 var(--c); }
+.side .pick { display: block; width: 100%; padding: 8px 32px 8px 10px; padding-inline: 10px 32px; border: 0; background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; border-radius: 8px; }
+.side .pick .title { display: block; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side .pick .meta { display: block; font-size: 11px; opacity: .65; margin-top: 2px; }
+.side .dots { position: absolute; top: 6px; inset-inline-end: 4px; border: 0; background: transparent; color: inherit; opacity: .6; cursor: pointer; padding: 2px 6px; border-radius: 6px; font-size: 14px; }
+.side .dots:hover, .side .dots:focus-visible { opacity: 1; background: rgba(127,127,127,.15); }
+.side .row-menu { display: flex; gap: 6px; padding: 0 10px 8px; flex-wrap: wrap; align-items: center; font-size: 12px; }
+.side .row-menu input { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--rekhu-border, #d1d5db); border-radius: 6px; font: inherit; color: inherit; background: var(--rekhu-surface, #fff); }
+.side .row-menu .btn { padding: 4px 9px; font-size: 12px; }
+.side .note { padding: 10px 14px; font-size: 12px; opacity: .7; }
+.side .load { margin: 6px 10px 10px; }
+@media (max-width: 640px) { .panel.side-open { width: min(var(--rekhu-width, 400px), calc(100vw - 32px)); } .side { position: absolute; inset: 0; z-index: 2; width: auto; border-inline-end: 0; } }
 `;
 
 
@@ -336,6 +360,9 @@ const TEXTS = {
         attach: 'Attach files',
         debugAction: '{n} action', debugActions: '{n} actions', debugFailed: '{n} failed', debugOk: 'ok', debugError: 'failed',
         debugInput: 'Input', debugRead: 'What the assistant read', debugWhy: 'Why it failed', debugCopy: 'Copy', debugCopied: 'Copied',
+        conversations: 'Conversations', search: 'Search conversations', more: 'More', loadMore: 'Show more', rename: 'Rename', save: 'Save',
+        delete: 'Delete', deleteAsk: 'Delete this conversation?', noConversations: 'No earlier conversations yet.', nothingFound: 'Nothing found.',
+        question: '1 question', questions: '{n} questions',
     },
     ar: {
         signedOut: 'انتهت جلستك. أعد تحميل الصفحة وسجّل الدخول من جديد.',
@@ -351,6 +378,9 @@ const TEXTS = {
         attach: 'إرفاق ملفات',
         debugAction: 'إجراء واحد', debugActions: '{n} إجراءات', debugFailed: 'فشل {n}', debugOk: 'تم', debugError: 'فشل',
         debugInput: 'المدخلات', debugRead: 'ما قرأه المساعد', debugWhy: 'سبب الفشل', debugCopy: 'نسخ', debugCopied: 'تم النسخ',
+        conversations: 'المحادثات', search: 'ابحث في المحادثات', more: 'المزيد', loadMore: 'عرض المزيد', rename: 'إعادة تسمية', save: 'حفظ',
+        delete: 'حذف', deleteAsk: 'حذف هذه المحادثة؟', noConversations: 'لا توجد محادثات سابقة بعد.', nothingFound: 'لا توجد نتائج.',
+        question: 'سؤال واحد', questions: '{n} أسئلة',
     },
     nl: {
         signedOut: 'Je sessie is verlopen. Laad de pagina opnieuw en log weer in.',
@@ -366,6 +396,9 @@ const TEXTS = {
         attach: 'Bestanden toevoegen',
         debugAction: '{n} actie', debugActions: '{n} acties', debugFailed: '{n} mislukt', debugOk: 'gelukt', debugError: 'mislukt',
         debugInput: 'Invoer', debugRead: 'Wat de assistent las', debugWhy: 'Waarom het mislukte', debugCopy: 'Kopiëren', debugCopied: 'Gekopieerd',
+        conversations: 'Gesprekken', search: 'Zoek in gesprekken', more: 'Meer', loadMore: 'Toon meer', rename: 'Hernoemen', save: 'Opslaan',
+        delete: 'Verwijderen', deleteAsk: 'Dit gesprek verwijderen?', noConversations: 'Nog geen eerdere gesprekken.', nothingFound: 'Niets gevonden.',
+        question: '1 vraag', questions: '{n} vragen',
     },
 };
 
@@ -494,6 +527,41 @@ function createClient(options = {}) {
         },
         /** Runs the action behind a confirm card. */
         confirm(id, onEvent) { return client.send({ confirm: id }, onEvent); },
+        /**
+         * A page of the user's earlier conversations, newest first: { conversations: [{ id, title, scope, updated_at,
+         * questions }], next? }. query searches titles and questions; before is the next of the page before.
+         */
+        async conversations({ query = '', before = null, limit = 30 } = {}) {
+            const params = new URLSearchParams({ limit: String(limit) });
+            if (query) params.set('q', query);
+            if (before) params.set('before', before);
+            if (opts().scope) params.set('scope', opts().scope);
+            const url = at('conversations');
+            const response = await request('GET', null, 'application/json', '', `${url}${url.includes('?') ? '&' : '?'}${params}`);
+            if (response.status === 401 || response.status === 419) throw Object.assign(new Error(words().signedOut), { status: response.status });
+            if (!response.ok) throw Object.assign(new Error(words().unavailable), { status: response.status });
+            return response.json();
+        },
+        /** Makes an earlier conversation the current one and resolves to its history (as history() gives it). */
+        async open(id) {
+            client.conversation = id;
+            return client.history();
+        },
+        /** Names a conversation; an empty title goes back to its first question. Resolves to the item as the list shows it. */
+        async rename(id, title) {
+            const response = await request('PATCH', { title: String(title ?? '') }, 'application/json', '', at(`conversations/${encodeURIComponent(id)}`));
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok) throw Object.assign(new Error(body.message || words().failed), { status: response.status });
+            return body.conversation;
+        },
+        /** Deletes a conversation for good; when it is the current one, the next message starts a new one. */
+        async remove(id) {
+            const response = await request('DELETE', null, 'application/json', '', at(`conversations/${encodeURIComponent(id)}`));
+            if (!response.ok && response.status !== 404) throw Object.assign(new Error(words().failed), { status: response.status });
+            if (client.conversation === id) client.conversation = null;
+        },
+        /** A new chat: the next message starts a new conversation, and the current one stays in the list. */
+        newChat() { client.conversation = null; },
         /** Forgets the conversation; the next message starts a new one. */
         async forget() {
             const id = client.conversation;
@@ -588,10 +656,15 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         root.innerHTML = `<style>${CSS}</style>
 <button class="launcher" part="launcher" aria-label="${escape(s.name || t.name)}">${ICON}</button>
 <section class="panel" part="panel" role="dialog" aria-label="${escape(s.name || t.name)}">
-  <header part="header"><strong part="title">${escape(s.name || t.name)}</strong><button class="restart" part="restart" title="${escape(t.newTitle)}">${escape(t.new)}</button><button class="close" part="close" aria-label="${escape(t.close)}">✕</button></header>
+  <header part="header"><button class="menu" part="menu" hidden aria-expanded="false" title="${escape(t.conversations)}" aria-label="${escape(t.conversations)}">☰</button><strong part="title">${escape(s.name || t.name)}</strong><button class="restart" part="restart" title="${escape(t.newTitle)}">${escape(t.new)}</button><button class="close" part="close" aria-label="${escape(t.close)}">✕</button></header>
+  <div class="body">
+  <aside class="side" part="conversations" aria-label="${escape(t.conversations)}"><input class="search" part="search" type="search" placeholder="${escape(t.search)}" aria-label="${escape(t.search)}"><ul part="conversation-list"></ul></aside>
+  <div class="chat">
   <div class="log" part="log" aria-live="polite"></div>
   <div class="chips" part="files"></div>
   <form part="form">${s.files === false ? '' : `<label class="attach" part="attach" title="${escape(t.attach)}" aria-label="${escape(t.attach)}"><input type="file" multiple hidden>${CLIP_ICON}</label>`}<textarea part="input" rows="1" placeholder="${escape(s.placeholder || t.placeholder)}" aria-label="${escape(t.message)}"></textarea><button class="btn" part="send" type="submit">${escape(t.send)}</button></form>
+  </div>
+  </div>
 </section>`;
         // "dir": the page's direction is followed by itself (the host inherits it); an explicit one wins
         if (s.dir === 'rtl' || s.dir === 'ltr') this.setAttribute('dir', s.dir);
@@ -612,6 +685,16 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
         root.querySelector('.launcher').addEventListener('click', () => this.toggle());
         root.querySelector('.close').addEventListener('click', () => this.toggle(false));
         root.querySelector('.restart').addEventListener('click', () => this.restart());
+        this.side = root.querySelector('.side');
+        this.list = root.querySelector('.side ul');
+        this.menuButton = root.querySelector('.menu');
+        this.menuButton.addEventListener('click', () => this.showList(!this.panel.classList.contains('side-open')));
+        let searching = null;
+        const search = root.querySelector('.side .search');
+        search.addEventListener('input', () => {
+            clearTimeout(searching);
+            searching = setTimeout(() => { this.query = search.value.trim(); this.listConversations(); }, 250);
+        });
         root.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); this.send(); });
         this.input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } });
         this.input.addEventListener('input', () => { this.input.style.height = 'auto'; this.input.style.height = `${this.input.scrollHeight}px`; });
@@ -670,6 +753,11 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
             this.offered = history.then((d) => d.report || null, () => null);
             const data = await history;
             if (data.brand) this.brand(data.brand);
+            if (data.history === true && this.settings.history !== false) {
+                this.hasHistory = true;
+                this.menuButton.hidden = false;
+                if (this.load('side') === '1' && !matchMedia('(max-width: 640px)').matches) this.showList(true);
+            }
             if (!this.settings.greeting && data.greeting) this.serverGreeting = data.greeting;
             if (Array.isArray(data.quick) && !(data.messages || []).length) this.quick = data.quick;
             if (!(data.messages || []).length) this.greet();
@@ -731,9 +819,137 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
 
     async restart() {
         if (this.busy) return;
+        if (this.hasHistory) {
+            this.client.newChat();
+            this.greet();
+            this.markCurrent();
+            return;
+        }
         const forgotten = this.client.forget();
         this.greet();
         await forgotten;
+    }
+
+    /** Shows or hides the list of earlier conversations; it remembers how the user left it. */
+    showList(open) {
+        this.panel.classList.toggle('side-open', open);
+        this.menuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+        this.store('side', open ? '1' : null);
+        if (open) this.listConversations();
+    }
+
+    /** The first page of the list, for the search typed; more pages come with "Show more". */
+    async listConversations(before = null) {
+        const t = this.t;
+        const asked = (this.listAsked = (this.listAsked || 0) + 1);
+        try {
+            const page = await this.client.conversations({ query: this.query || '', before });
+            if (asked !== this.listAsked) return;
+            if (!before) this.list.innerHTML = '';
+            this.list.querySelector('.load')?.remove();
+            for (const item of page.conversations || []) this.list.append(this.row(item));
+            if (!this.list.querySelector('li')) this.list.innerHTML = `<p class="note">${escape(this.query ? t.nothingFound : t.noConversations)}</p>`;
+            if (page.next) {
+                const more = document.createElement('button');
+                more.type = 'button';
+                more.className = 'btn light load';
+                more.textContent = t.loadMore;
+                more.addEventListener('click', () => this.listConversations(page.next));
+                this.list.append(more);
+            }
+        } catch (error) {
+            if (!before) this.list.innerHTML = `<p class="note">${escape(error.message || t.unavailable)}</p>`;
+        }
+    }
+
+    /** One conversation in the list: its title, when, how many questions, and its menu (rename, delete). */
+    row(item) {
+        const t = this.t;
+        const li = document.createElement('li');
+        li.dataset.id = item.id;
+        li.setAttribute('part', 'conversation');
+        if (item.id === this.conversation) li.classList.add('current');
+        const count = item.questions === 1 ? t.question : t.questions.replace('{n}', amount(Number(item.questions) || 0, 0));
+        li.innerHTML = `<button type="button" class="pick"><span class="title">${escape(item.title || t.new)}</span><span class="meta">${escape(this.when(item.updated_at))}${item.questions ? ` · ${escape(count)}` : ''}</span></button>`
+            + `<button type="button" class="dots" aria-label="${escape(t.more)}" aria-haspopup="true">⋯</button>`;
+        li.querySelector('.pick').addEventListener('click', () => this.openConversation(item.id));
+        li.querySelector('.dots').addEventListener('click', () => this.rowMenu(li, item));
+        return li;
+    }
+
+    /** The row's menu under it: rename in place, or delete after a second click. */
+    rowMenu(li, item) {
+        const t = this.t;
+        const open = li.querySelector('.row-menu');
+        this.list.querySelectorAll('.row-menu').forEach((m) => m.remove());
+        if (open) return;
+        const menu = document.createElement('div');
+        menu.className = 'row-menu';
+        menu.innerHTML = `<button type="button" class="btn light rename">${escape(t.rename)}</button><button type="button" class="btn danger delete">${escape(t.delete)}</button>`;
+        li.append(menu);
+        menu.querySelector('.rename').addEventListener('click', () => {
+            menu.innerHTML = `<input type="text" maxlength="80" value="${escape(item.title || '')}" aria-label="${escape(t.rename)}"><button type="button" class="btn save">${escape(t.save)}</button><button type="button" class="btn light cancel">${escape(t.cancel)}</button>`;
+            const input = menu.querySelector('input');
+            input.focus();
+            input.select();
+            const save = async () => {
+                try {
+                    const named = await this.client.rename(item.id, input.value);
+                    li.replaceWith(this.row(named || { ...item, title: input.value }));
+                } catch (error) { menu.innerHTML = `<span>${escape(error.message)}</span>`; }
+            };
+            menu.querySelector('.save').addEventListener('click', save);
+            menu.querySelector('.cancel').addEventListener('click', () => menu.remove());
+            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') menu.remove(); });
+        });
+        menu.querySelector('.delete').addEventListener('click', () => {
+            menu.innerHTML = `<span>${escape(t.deleteAsk)}</span><button type="button" class="btn danger yes">${escape(t.delete)}</button><button type="button" class="btn light no">${escape(t.cancel)}</button>`;
+            menu.querySelector('.no').addEventListener('click', () => menu.remove());
+            menu.querySelector('.yes').addEventListener('click', async () => {
+                const current = item.id === this.conversation;
+                try {
+                    await this.client.remove(item.id);
+                    li.remove();
+                    if (current) this.greet();
+                    if (!this.list.querySelector('li')) this.list.innerHTML = `<p class="note">${escape(t.noConversations)}</p>`;
+                } catch (error) { menu.innerHTML = `<span>${escape(error.message)}</span>`; }
+            });
+        });
+    }
+
+    /** Opens an earlier conversation in the chat; on a small screen the list makes room for it. */
+    async openConversation(id) {
+        if (this.busy) return;
+        try {
+            const data = await this.client.open(id);
+            this.log.innerHTML = '';
+            for (const line of data.messages || []) {
+                this.add(line.role, markdown(line.text));
+                if (line.role === 'bot' && line.id) await this.reportLink(line.id);
+            }
+            if (!(data.messages || []).length) this.greet();
+            this.markCurrent();
+            if (matchMedia('(max-width: 640px)').matches) this.showList(false);
+            this.input.focus();
+        } catch (error) {
+            this.add('error', escape(error.message || this.t.failed));
+        }
+    }
+
+    /** Highlights the conversation in the chat. */
+    markCurrent() {
+        this.list?.querySelectorAll('li').forEach((li) => li.classList.toggle('current', li.dataset.id === this.conversation));
+    }
+
+    /** When a conversation was last used: the time for today, else the day, in the user's language. */
+    when(at) {
+        const date = new Date(at);
+        if (Number.isNaN(date.getTime())) return '';
+        const locale = this.settings.locale || navigator.language || undefined;
+        const today = new Date().toDateString() === date.toDateString();
+        try {
+            return today ? date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) : date.toLocaleDateString(locale, { day: 'numeric', month: 'short', ...(date.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}) });
+        } catch { return date.toISOString().slice(0, 10); }
     }
 
     add(kind, html) {
@@ -805,6 +1021,7 @@ const build = () => class RekhuAssistantElement extends HTMLElement {
             endStep();
             this.busy = false;
             this.sendButton.disabled = false;
+            if (this.hasHistory && this.panel.classList.contains('side-open')) this.listConversations();
         }
     }
 

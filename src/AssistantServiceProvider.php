@@ -3,6 +3,7 @@
 namespace Rekhu\Assistant;
 
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\RateLimiter;
@@ -10,6 +11,7 @@ use Illuminate\Support\ServiceProvider;
 use Rekhu\Assistant\Console\CheckCommand;
 use Rekhu\Assistant\Console\InstallCommand;
 use Rekhu\Assistant\Console\MakeToolCommand;
+use Rekhu\Assistant\Console\PruneCommand;
 use Rekhu\Assistant\Console\ScanCommand;
 use Rekhu\Assistant\Console\StatusCommand;
 use Rekhu\Assistant\Console\TestCommand;
@@ -33,12 +35,16 @@ class AssistantServiceProvider extends ServiceProvider
         }
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'rekhu-assistant');
         $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'rekhu-assistant');
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+        // conversations kept past conversations.keep_days go once a day, with the app's own scheduler
+        $this->callAfterResolving(Schedule::class, fn (Schedule $schedule) => $schedule->command(PruneCommand::class)->daily()->withoutOverlapping()->runInBackground());
         Blade::component('rekhu-assistant', Widget::class);
 
         if ($this->app->runningInConsole()) {
             $this->publishes([__DIR__.'/../config/rekhu-assistant.php' => config_path('rekhu-assistant.php')], 'rekhu-assistant-config');
             $this->publishes([__DIR__.'/../resources/lang' => $this->app->langPath('vendor/rekhu-assistant')], 'rekhu-assistant-lang');
-            $this->commands([InstallCommand::class, StatusCommand::class, MakeToolCommand::class, TryCommand::class, CheckCommand::class, ScanCommand::class, TestCommand::class]);
+            $this->publishes([__DIR__.'/../database/migrations' => database_path('migrations')], 'rekhu-assistant-migrations');
+            $this->commands([InstallCommand::class, StatusCommand::class, MakeToolCommand::class, TryCommand::class, CheckCommand::class, ScanCommand::class, TestCommand::class, PruneCommand::class]);
         }
     }
 }

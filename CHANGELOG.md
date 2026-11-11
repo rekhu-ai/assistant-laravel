@@ -2,6 +2,16 @@
 
 All notable changes to `rekhu/assistant-laravel`. Versions follow [semantic versioning](https://semver.org).
 
+## 0.14.0 · 11 November 2026
+
+- **Conversation history.** Your users find their earlier conversations again, in a list next to the chat (the widget 0.8 shows it): open one and go on in it, search, rename and delete.
+  - Conversations are kept in your database once you run `php artisan migrate` (the package brings the migration), for 90 days after their last message (`conversations.keep_days`). Without the migration they stay in the cache as before.
+  - The package removes older conversations once a day with your scheduler; `php artisan rekhu-assistant:prune` does it by hand.
+  - `GET …/chat/conversations` comes in pages (`limit`, `before`, `next`) and searches titles and the user's own questions (`q`). Each item says how many questions it has, also after the oldest turns were dropped.
+  - `PATCH …/chat/conversations/{id}` renames one; `DELETE …/chat/conversations/{id}` deletes one. The chat's `GET` says `"history": true` for a signed-in user.
+- **Your own store** keeps working as it is. Implement `Rekhu\Assistant\Contracts\ConversationHistory` (`page`, `rename`) as well to give your users paging, search and renaming.
+- Same as `@rekhu/assistant-node` 0.8.0.
+
 ## 0.13.1 · 8 November 2026
 
 - **Europe-only accounts:** when the Rekhu account behind the app processes data in Europe only and a model call cannot be served in the EU, the user reads that the assistant is not available under the app's privacy setting and is asked to tell the app's administrator, in English, Arabic or Dutch, instead of being asked to try again. The log names the cause and where to change it.

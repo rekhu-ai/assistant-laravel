@@ -46,8 +46,10 @@ class AssistantRoutes
                 Route::post('/', [ChatController::class, 'send'])->middleware('throttle:rekhu-assistant')->name('chat');
                 Route::get('/', [ChatController::class, 'history'])->name('history');
                 Route::delete('/', [ChatController::class, 'forget'])->name('forget');
-                // the user's conversations, newest first, for a chat panel with a list (?scope= for a chat of its own)
+                // the user's conversations for the chat's list: newest first, in pages, searched; renamed and deleted by id
                 Route::get('conversations', [ChatController::class, 'conversations'])->name('conversations');
+                Route::patch('conversations/{conversation}', [ChatController::class, 'rename'])->where('conversation', '[a-zA-Z0-9-]{8,64}')->name('conversations.rename');
+                Route::delete('conversations/{conversation}', [ChatController::class, 'delete'])->where('conversation', '[a-zA-Z0-9-]{8,64}')->name('conversations.delete');
                 if (Reports::enabled()) {
                     Route::post('report', [ChatController::class, 'report'])->name('report');
                 }

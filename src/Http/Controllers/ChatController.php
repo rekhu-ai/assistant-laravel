@@ -73,6 +73,8 @@ final class ChatController
             'quick' => $conversation ? null : (Quick::for($request->user()) ?: null),
             // the reasons a user may give when reporting an answer, in their language
             'report' => Reports::offer($visitor !== null),
+            // a signed-in user has a list of earlier conversations; the public chat has none
+            'history' => $visitor === null && $request->user() ? true : null,
             // the chat's look for this tenant, when the app gives it one (brandUsing, a logo, colours, white-label)
             'brand' => RekhuAssistant::branded() ? self::brandFor($request, $visitor !== null) : null,
         ], fn ($value) => $value !== null));
@@ -102,12 +104,42 @@ final class ChatController
         return response()->json(['message' => __('rekhu-assistant::messages.report_thanks')], 201);
     }
 
-    /** The signed-in user's conversations, newest first: id, title (their first question), scope, when. */
+    /**
+     * The signed-in user's conversations for the chat's list, newest first: id, title (their name for it, else their
+     * first question), scope, when, how many questions; in pages (?before= the next of the page before) and searched (?q=).
+     */
     public function conversations(Request $request): JsonResponse
     {
         $owner = Conversation::owner($request->user(), null);
+        $limit = min(100, max(1, (int) $request->query('limit', 30)));
+        $history = RekhuAssistant::history();
+        if (! $history) {
+            return response()->json(['conversations' => RekhuAssistant::store()->list($owner, Scopes::from($request), $limit)]);
+        }
+        $page = $history->page($owner, Scopes::from($request), $limit, $request->filled('before') ? (string) $request->query('before') : null, $request->filled('q') ? mb_substr((string) $request->query('q'), 0, 100) : null);
 
-        return response()->json(['conversations' => RekhuAssistant::store()->list($owner, Scopes::from($request), min(100, max(1, (int) $request->query('limit', 30))))]);
+        return response()->json(array_filter($page, fn ($v) => $v !== null));
+    }
+
+    /** Names one of the user's conversations; an empty title goes back to their first question. */
+    public function rename(Request $request, string $conversation): JsonResponse
+    {
+        $title = $request->validate(['title' => ['present', 'nullable', 'string', 'max:200']])['title'] ?? '';
+        $history = RekhuAssistant::history();
+        $item = $history?->rename(Conversation::owner($request->user(), null), $conversation, (string) $title);
+        if (! $item) {
+            Protocol::refuse(404, __('rekhu-assistant::messages.conversation_not_found'));
+        }
+
+        return response()->json(['conversation' => $item]);
+    }
+
+    /** Deletes one of the user's conversations for good. */
+    public function delete(Request $request, string $conversation): Response
+    {
+        RekhuAssistant::store()->forget(Conversation::owner($request->user(), null), $conversation);
+
+        return response()->noContent();
     }
 
     public function forget(Request $request): Response
